@@ -1,6 +1,11 @@
+// Credit: https://www.sitepoint.com/a-step-by-step-guide-to-building-an-android-audio-player-app/
+
 package com.music.session;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentManager;
+import androidx.fragment.app.FragmentTransaction;
 
 import android.content.ComponentName;
 import android.content.ContentResolver;
@@ -15,30 +20,78 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.provider.MediaStore;
 import android.util.Log;
+import android.view.View;
 import android.webkit.MimeTypeMap;
+import android.widget.Button;
 import android.widget.Toast;
 
 import java.util.ArrayList;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
-
+    private SongsList mSongListInstance;
     private MediaPlayerService player;
     boolean serviceBound = false;
     ArrayList<Audio> audioList;
     String TAG = "MainActivity";
+    Button firstFragmentButton, secondFragmentButton;
+    FragmentManager fragmentManager;
+    FragmentTransaction fragmentTransaction;
+    Fragment playListsFragment;
+    Fragment allSongsFragment;
     Context mContext;
+    public static final String BROADCAST_PLAY_NEW_AUDIO = "com.music.session.PlayNewAudio";
+    // Change to your package name
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         mContext = this;
+        mSongListInstance = SongsList.getInstance();
         // TODO
         // Play from http
         //playAudio("https://upload.wikimedia.org/wikipedia/commons/6/6c/Grieg_Lyric_Pieces_Kobold.ogg");
         loadAudio();
 //play the first audio in the ArrayList
         Log.v(TAG, "Try to play");
-        playAudio(audioList.get(0).getUri());
+        //playAudio(audioList.get(0).getUri());
+
+        // bind service
+        Intent playerIntent = new Intent(this, MediaPlayerService.class);
+        startService(playerIntent);
+        bindService(playerIntent, serviceConnection, Context.BIND_AUTO_CREATE);
+        // maybe delete up
+
+
+
+        firstFragmentButton = (Button) findViewById(R.id.all_songs);
+        secondFragmentButton = (Button) findViewById(R.id.play_lists);
+        fragmentManager = getSupportFragmentManager();
+        fragmentTransaction = fragmentManager.beginTransaction();
+        //mMediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
+        allSongsFragment = new AllSongs();
+        fragmentTransaction.add(R.id.container, allSongsFragment, "check");
+        fragmentTransaction.commit();
+// perform setOnClickListener event on First Button
+        firstFragmentButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+// load First Fragment
+                getSupportFragmentManager()
+                        .beginTransaction().replace(R.id.container, allSongsFragment)
+                        .commit();
+            }
+        });
+// perform setOnClickListener event on Second Button
+        secondFragmentButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                playListsFragment = new PlayLists();
+                getSupportFragmentManager().beginTransaction()
+                        .replace(R.id.container, playListsFragment)
+                        .commit();
+            }
+        });
 
     }
 
@@ -50,7 +103,6 @@ public class MainActivity extends AppCompatActivity {
             MediaPlayerService.LocalBinder binder = (MediaPlayerService.LocalBinder) service;
             player = binder.getService();
             serviceBound = true;
-
             Toast.makeText(MainActivity.this, "Service Bound", Toast.LENGTH_SHORT).show();
         }
 
@@ -59,8 +111,33 @@ public class MainActivity extends AppCompatActivity {
             serviceBound = false;
         }
     };
+    public void setSongList(List<Audio> songList) {
+        mSongListInstance.setSongsList(songList);
+    }
 
-    private void playAudio(Uri media) {
+    public void playAudio(int audioIndex) {
+        //Check is service is active
+        if (!serviceBound) {
+            //Store Serializable audioList to SharedPreferences
+            StorageUtil storage = new StorageUtil(getApplicationContext());
+            storage.storeAudio(audioList);
+            storage.storeAudioIndex(audioIndex);
+
+            Intent playerIntent = new Intent(this, MediaPlayerService.class);
+            startService(playerIntent);
+            bindService(playerIntent, serviceConnection, Context.BIND_AUTO_CREATE);
+        } else {
+            //Store the new audioIndex to SharedPreferences
+            StorageUtil storage = new StorageUtil(getApplicationContext());
+            storage.storeAudioIndex(audioIndex);
+
+            //Service is active
+            //Send a broadcast to the service -> PLAY_NEW_AUDIO
+            Intent broadcastIntent = new Intent(BROADCAST_PLAY_NEW_AUDIO);
+            sendBroadcast(broadcastIntent);
+        }
+    }
+    protected void playAudio(Uri media) {
         //Check is service is active
         if (!serviceBound) {
             Intent playerIntent = new Intent(this, MediaPlayerService.class);
@@ -74,8 +151,12 @@ public class MainActivity extends AppCompatActivity {
         } else {
             //Service is active
             //Send media with BroadcastReceiver
+            Intent playerIntent = new Intent(this, MediaPlayerService.class);
+            playerIntent.putExtra("media", media.toString());
+            player.sendBroadcast(playerIntent);
         }
     }
+
     private void loadAudio() {
         final String [] STAR= {"*"};
         String selectionMusic = MediaStore.Audio.Media.IS_MUSIC + "!= ? AND ";
@@ -98,10 +179,13 @@ public class MainActivity extends AppCompatActivity {
                         MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id);
                 grantUriPermission(getPackageName(), contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
                 // Save to audioList
-                audioList.add(new Audio(contentUri, title, album, artist, name));
+                audioList.add(new Audio(contentUri.toString(), title, album, artist, name));
             }
+            Log.v(TAG, "loadAudio audioList = " + audioList);
         }
         cursor.close();
+        StorageUtil storage = new StorageUtil(getApplicationContext());
+        storage.storeAudio(audioList);
         Log.v(TAG, "cursor.close");
     }
     @Override

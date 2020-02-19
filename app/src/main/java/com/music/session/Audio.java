@@ -1,18 +1,20 @@
 package com.music.session;
 
+import android.graphics.Bitmap;
 import android.net.Uri;
 
 import java.io.Serializable;
 
 public class Audio implements Serializable {
 
-    private final Uri uri;
+    private final String uri;
     private String title;
     private String name;
     private String album;
     private String artist;
+    private Bitmap mClipArt;
 
-    public Audio(Uri uri, String title, String album, String artist, String name) {
+    public Audio(String uri, String title, String album, String artist, String name) {
         this.uri = uri;
         this.title = title;
         this.album = album;
@@ -20,7 +22,7 @@ public class Audio implements Serializable {
         this.name = name;
     }
 
-    public Uri getUri() {
+    public String getUri() {
         return uri;
     }
 
@@ -48,4 +50,9 @@ public class Audio implements Serializable {
     public void setArtist(String artist) {
         this.artist = artist;
     }
+
+    public void setClipArt(Bitmap clipart) {
+        mClipArt = clipart;
+    }
+    public Bitmap getClipArt() { return mClipArt;}
 }
