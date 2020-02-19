@@ -13,6 +13,8 @@ import android.content.IntentFilter;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.media.AudioAttributes;
+import android.media.AudioFocusRequest;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.media.session.MediaSessionManager;
@@ -86,8 +88,10 @@ public class MediaPlayerService extends Service implements MediaPlayer.OnComplet
         //Reset so that the MediaPlayer is not pointing to another data source
         mediaPlayer.reset();
 
-        mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
-
+        AudioAttributes aa = new AudioAttributes.Builder()
+                .setFlags(AudioAttributes.USAGE_MEDIA | AudioAttributes.CONTENT_TYPE_MUSIC)
+                .build();
+        mediaPlayer.setAudioAttributes(aa);
         // Open a specific media item using ParcelFileDescriptor.
         ContentResolver resolver = getApplicationContext()
                 .getContentResolver();
@@ -111,7 +115,7 @@ public class MediaPlayerService extends Service implements MediaPlayer.OnComplet
             e.printStackTrace();
             stopSelf();
         }
-        //mediaPlayer.prepareAsync();
+        mediaPlayer.prepareAsync();
     }
 
     private void playMedia() {
@@ -225,16 +229,63 @@ public class MediaPlayerService extends Service implements MediaPlayer.OnComplet
         }
     }
 
-    private boolean requestAudioFocus() {
-        audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
-        int result = audioManager.requestAudioFocus(this, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
-        if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
-            //Focus gained
+    public boolean requestFocus() {
+        if (!handleAudioFocus || currentFocus == AudioManager.AUDIOFOCUS_GAIN) {
             return true;
         }
-        //Could not gain focus
+        if (audioManager == null) {
+            return false;
+        }
+
+        int status = audioManager.requestAudioFocus(this, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            AudioFocusRequest.Builder afBuilder = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN);
+            AudioAttributes.Builder aaBuilder = new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC);
+            lastFocusRequest = afBuilder.setAudioAttributes(aaBuilder.build()).build();
+            status = audioManager.requestAudioFocus(lastFocusRequest);
+        } else {
+            status = audioManager.requestAudioFocus(this, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
+        }
+        if (AudioManager.AUDIOFOCUS_REQUEST_GRANTED == status) {
+            currentFocus = AudioManager.AUDIOFOCUS_GAIN;
+            return true;
+        }
+        startRequested = true;
         return false;
     }
+    public boolean abandonFocus() {
+        if (!handleAudioFocus) {
+            return true;
+        }
+        if (audioManager == null) {
+            return false;
+        }
+
+        startRequested = false;
+        int status = audioManager.abandonAudioFocus(this);
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if(lastFocusRequest != null) {
+                status = audioManager.abandonAudioFocusRequest(lastFocusRequest);
+                if(AudioManager.AUDIOFOCUS_REQUEST_GRANTED == status) {
+                    // reset lastFocusRequest on success, there is no reason to try again
+                    lastFocusRequest = null;
+                }
+            } else {
+                // no focus was requested, return success
+                status = audioManager.AUDIOFOCUS_REQUEST_GRANTED;
+            }
+        } else {
+            status = audioManager.abandonAudioFocus(this);
+        }
+        return AudioManager.AUDIOFOCUS_REQUEST_GRANTED == status;
+    }
+    protected AudioFocusRequest lastFocusRequest;
+    protected boolean startRequested = false;
+    protected boolean pausedForLoss = false;
+    protected int currentFocus = 0;
+    protected boolean handleAudioFocus = true;
+
 
     private boolean removeAudioFocus() {
         return AudioManager.AUDIOFOCUS_REQUEST_GRANTED ==
@@ -305,7 +356,7 @@ public class MediaPlayerService extends Service implements MediaPlayer.OnComplet
         }
 
         //Request audio focus
-        if (!requestAudioFocus()) {
+        if (!requestFocus()) {
             //Could not gain focus
             stopSelf();
         }

@@ -56,10 +56,7 @@ public class MainActivity extends AppCompatActivity {
         Log.v(TAG, "Try to play");
         //playAudio(audioList.get(0).getUri());
 
-        // bind service
-        Intent playerIntent = new Intent(this, MediaPlayerService.class);
-        startService(playerIntent);
-        bindService(playerIntent, serviceConnection, Context.BIND_AUTO_CREATE);
+
         // maybe delete up
 
 
@@ -124,7 +121,11 @@ public class MainActivity extends AppCompatActivity {
             storage.storeAudioIndex(audioIndex);
 
             Intent playerIntent = new Intent(this, MediaPlayerService.class);
-            startService(playerIntent);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(playerIntent);
+            } else {
+                startService(playerIntent);
+            }
             bindService(playerIntent, serviceConnection, Context.BIND_AUTO_CREATE);
         } else {
             //Store the new audioIndex to SharedPreferences
@@ -148,6 +149,7 @@ public class MainActivity extends AppCompatActivity {
                 startService(playerIntent);
             }
             bindService(playerIntent, serviceConnection, Context.BIND_AUTO_CREATE);
+
         } else {
             //Service is active
             //Send media with BroadcastReceiver
