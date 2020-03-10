@@ -12,18 +12,23 @@ public class Audio implements Serializable {
     private String name;
     private String album;
     private String artist;
+    private String duration;
     private Bitmap mClipArt;
 
-    public Audio(String uri, String title, String album, String artist, String name) {
+    public Audio(String uri, String title, String album, String artist, String name, String duration) {
         this.uri = uri;
         this.title = title;
         this.album = album;
         this.artist = artist;
         this.name = name;
+        this.duration = duration;
     }
 
     public String getUri() {
         return uri;
+    }
+    public String getDuration() {
+        return duration;
     }
 
 
