@@ -13,7 +13,7 @@ public class Audio implements Serializable {
     private String album;
     private String artist;
     private String duration;
-    private Bitmap mClipArt;
+    private Bitmap mClipArt = null;
 
     public Audio(String uri, String title, String album, String artist, String name, String duration) {
         this.uri = uri;

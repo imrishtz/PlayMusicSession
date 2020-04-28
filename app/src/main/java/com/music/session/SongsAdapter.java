@@ -1,6 +1,8 @@
 package com.music.session;
 
+import android.content.Context;
 import android.graphics.Bitmap;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -12,6 +14,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import java.util.List;
 
 public class SongsAdapter extends RecyclerView.Adapter<SongsAdapter.MyViewHolder> {
+    private final Context mContext;
     private List<Audio> mSongsData;
 
     public static class MyViewHolder extends RecyclerView.ViewHolder {
@@ -29,8 +32,9 @@ public class SongsAdapter extends RecyclerView.Adapter<SongsAdapter.MyViewHolder
         }
     }
 
-    public SongsAdapter(List<Audio> songsData) {
+    public SongsAdapter(List<Audio> songsData, Context context) {
         mSongsData = songsData;
+        mContext = context;
     }
 
     @Override
@@ -50,7 +54,13 @@ public class SongsAdapter extends RecyclerView.Adapter<SongsAdapter.MyViewHolder
         Bitmap bitMapClipArt = mSongsData.get(position).getClipArt();
         holder.textView2.setText(songTitle);
         holder.textView3.setText(artistName);
-        holder.image_clipart.setImageBitmap(bitMapClipArt);
+        if (bitMapClipArt != null) {
+            holder.image_clipart.setImageBitmap(bitMapClipArt);
+            Log.v("imri", "imri exc if");
+        } else {
+            holder.image_clipart.setImageDrawable(mContext.getDrawable(R.drawable.ic_action_name));
+            Log.v("imri", "imri exc else");
+        }
 
         holder.ViewRec.setOnClickListener(new View.OnClickListener() {
             @Override

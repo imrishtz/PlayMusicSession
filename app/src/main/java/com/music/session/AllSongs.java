@@ -2,6 +2,7 @@ package com.music.session;
 
 import android.app.AlertDialog;
 import android.content.Context;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.view.GestureDetector;
 import android.view.LayoutInflater;
@@ -9,7 +10,9 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.DividerItemDecoration;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -46,11 +49,15 @@ public class AllSongs extends Fragment {
 
         // use a linear layout manager
         layoutManager = new LinearLayoutManager(context);
+        DividerItemDecoration horizontalDecoration = new DividerItemDecoration(recyclerView.getContext(),
+                DividerItemDecoration.VERTICAL);
+        Drawable horizontalDivider = ContextCompat.getDrawable(context, R.drawable.horizontal_divider);
+        horizontalDecoration.setDrawable(horizontalDivider);
+        recyclerView.addItemDecoration(horizontalDecoration);
         recyclerView.setLayoutManager(layoutManager);
 
-        mSongsAdapter = new SongsAdapter(mSongList);
+        mSongsAdapter = new SongsAdapter(mSongList, context);
         recyclerView.setAdapter(mSongsAdapter);
-
         recyclerView.addOnItemTouchListener(new RecyclerTouchListener(context,
                 recyclerView, new ClickListener() {
             @Override

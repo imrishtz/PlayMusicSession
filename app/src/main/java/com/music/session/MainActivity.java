@@ -17,6 +17,7 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
 import android.provider.MediaStore;
 import android.util.Log;
@@ -38,6 +39,8 @@ public class MainActivity extends AppCompatActivity implements Runnable, PopupMe
     private SongsList mSongListInstance;
     private MediaPlayerService player;
     boolean serviceBound = false;
+    private boolean isThreadRunning = false;
+    private Handler mainHandler = new Handler();
     Button playPauseButton, skipNextButton, resartOrLastButton, menu;
     Audio currentPlaying = null;
     SeekBar seekBar;
@@ -62,6 +65,7 @@ public class MainActivity extends AppCompatActivity implements Runnable, PopupMe
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        Log.v(TAG, "onCreate imri");
         mContext = this;
         mSongListInstance = SongsList.getInstance();
         Objects.requireNonNull(getSupportActionBar()).setDisplayShowTitleEnabled(false);
@@ -228,7 +232,6 @@ public class MainActivity extends AppCompatActivity implements Runnable, PopupMe
             //Send a broadcast to the service -> PLAY_NEW_AUDIO
             Intent broadcastIntent = new Intent(BROADCAST_PLAY_NEW_AUDIO);
             sendBroadcast(broadcastIntent);
-
         }
        /* currentPlaying = audioList.get(audioIndex);
         Log.v(TAG, "imri currentPlaying = " + currentPlaying);
@@ -241,7 +244,11 @@ public class MainActivity extends AppCompatActivity implements Runnable, PopupMe
         */
         playPauseButton.setBackgroundResource(R.drawable.ic_pause);
 
-        new Thread(this).start();
+        if (!isThreadRunning) {
+            new Thread(new UiThreadRunner()).start();
+           // new Handler().post(new UiThreadRunner() );
+            isThreadRunning = true;
+        }
     }
 
     private void loadAudio() {
@@ -276,9 +283,67 @@ public class MainActivity extends AppCompatActivity implements Runnable, PopupMe
         storage.storeAudio(audioList);
         Log.v(TAG, "cursor.close");
     }
+    public class UiThreadRunner implements Runnable {
+        int currentPosition;
+        boolean isPassedTimeVisible = true;
+        @Override
+        public void run() {
+            // Code here will run in UI thread
+            Log.v("imri", "imri UiThreadRunner run");
+            isThreadRunning = true;
+            Log.v("imri", "imri run");
+            while (true) {
+                if (serviceBound) {
+                    while (player.isPlaying()) {
+                        try {
+                            mainHandler.post(new Runnable() {
+                                @Override
+                                public void run() {
+                                    currentPosition = player.getCurrentPosition();
+                                    Audio temp = currentPlaying;
+                                    currentPlaying = audioList.get(player.getAudioIndex());
+                                    Log.v(TAG,"currentPlaying = " + currentPlaying.getDuration());
+                                    if (temp != currentPlaying) {
+                                        duration = Integer.valueOf(currentPlaying.getDuration());
+                                        seekBar.setMax(duration);
+                                        String time = getTime(duration);
+                                        totalTime.setText(time);
+                                        songName.setText(currentPlaying.getTitle());
+                                        artistAlbumName.setText(currentPlaying.getArtist() + " - " + currentPlaying.getAlbum());
+                                        artistAlbumName.setSelected(true);
+                                    }
+                                    seekBar.setProgress(currentPosition);
+                                    if (player.isPaused()) {
+                                        if (isPassedTimeVisible) {
+                                            seekBarHint.setVisibility(View.INVISIBLE);
+                                            isPassedTimeVisible = false;
+                                        } else {
+                                            seekBarHint.setVisibility(View.VISIBLE);
+                                            isPassedTimeVisible = true;
+                                        }
+                                    }
 
+                                }
+                            });
+
+                            Thread.sleep(1000);
+                        } catch (InterruptedException e) {
+                            Log.v(TAG," currentPlaying InterruptedException e = " + currentPlaying.getDuration());
+                            e.printStackTrace();
+                            break;
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                            Log.v(TAG," currentPlaying Exception e = " + currentPlaying.getDuration());
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
     // Updating console UI
     public void run() {
+        isThreadRunning = true;
         Log.v("imri", "imri run");
         while (true) {
             if (serviceBound) {
@@ -295,6 +360,7 @@ public class MainActivity extends AppCompatActivity implements Runnable, PopupMe
                         totalTime.setText(time);
                         songName.setText(currentPlaying.getTitle());
                         artistAlbumName.setText(currentPlaying.getArtist() + " - " + currentPlaying.getAlbum());
+                        artistAlbumName.setSelected(true);
                         seekBar.setProgress(currentPosition);
                         if (player.isPaused()) {
                             if (isPassedTimeVisible) {
@@ -307,8 +373,12 @@ public class MainActivity extends AppCompatActivity implements Runnable, PopupMe
                         }
                         Thread.sleep(1000);
                     } catch (InterruptedException e) {
+                        Log.v(TAG," currentPlaying InterruptedException e = " + currentPlaying.getDuration());
+                        e.printStackTrace();
                         break;
                     } catch (Exception e) {
+                        e.printStackTrace();
+                        Log.v(TAG," currentPlaying Exception e = " + currentPlaying.getDuration());
                         break;
                     }
                 }

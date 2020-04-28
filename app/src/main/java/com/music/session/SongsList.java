@@ -76,8 +76,8 @@ public class SongsList {
         String[] selExtARGS = new String[]{" 0",ext};
         Uri uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
         Cursor cursor= context.getContentResolver().query(uri, null, selectionMusic + selectionMp3 , selExtARGS, null);
-        cursor.moveToFirst();
         if (cursor != null && cursor.getCount() > 0 ) {
+            cursor.moveToFirst();
             while (cursor.moveToNext()) {
                 int idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID);
                 long id = cursor.getLong(idColumn);
