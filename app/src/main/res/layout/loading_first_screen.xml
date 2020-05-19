@@ -4,9 +4,9 @@
     android:orientation="vertical"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/colorAccent"
+    android:background="@color/black"
     android:gravity="center"
-    tools:context=".MainActivity"
+    tools:context=".view.MainActivity"
     >
 
     <TextView
@@ -14,6 +14,9 @@
         android:layout_height="wrap_content"
         android:layout_gravity="center_horizontal"
         android:layout_marginBottom="80dp"
+        android:textColor="@color/white"
+        android:shadowColor="@color/white"
+        android:shadowRadius="5"
         android:textSize="65dp"
         android:text="@string/bbbbb"></TextView>
 
@@ -22,17 +25,22 @@
         android:layout_width="300dp"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
+        android:textColor="@color/white"
+        android:shadowColor="@color/white"
+        android:shadowRadius="5"
         android:text="@string/no_permission_text"
         android:textAlignment="center"
         android:textSize="20dp"
         android:textStyle="bold"></TextView>
 
     <Button
-        android:id="@+id/start_main_activity_button"
+        android:id="@+id/re_request_permissions"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="20dp"
-
+        android:textColor="@color/white"
+        android:shadowColor="@color/white"
+        android:shadowRadius="5"
         android:background="@drawable/button_menu"
         android:padding="10dp"
         android:text="@string/re_request" />

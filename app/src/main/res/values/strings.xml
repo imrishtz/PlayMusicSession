@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">PlayList</string>
+    <string name="app_name">Simplay</string>
     <string name="artists">Artists</string>
     <string name="play_list">PlayLists</string>
     <string name="songs">Songs</string>
@@ -15,4 +15,10 @@
     <string name="time_start">00:00</string>
     <string name="pause">Pause</string>
     <string name="shuffle">Shuffle</string>
+    <string name="menu_settings">Settings</string>
+
+    <string name="cd_repeat">Repeat one or all</string>
+    <string name="cd_previous">Skip backwards</string>
+    <string name="cd_play">Play and pause</string>
+    <string name="cd_next">Skip forwards</string>
 </resources>

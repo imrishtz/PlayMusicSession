@@ -13,7 +13,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:paddingTop="75dp"
+        android:paddingTop="71dp"
         android:paddingBottom="75dp"
         app:layout_constraintBottom_toTopOf="@+id/music_player_layout"
         app:layout_constraintTop_toTopOf="parent"
@@ -184,23 +184,15 @@
             android:shadowRadius="8"
             app:layout_constraintStart_toStartOf="parent" />
 
-        <Button
-            android:id="@+id/play_lists"
-            style="@style/coolButton"
-            android:layout_width="wrap_content"
+        <ImageView
+            android:id="@+id/curr_clipart"
+            android:layout_width="10dp"
             android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:background="@drawable/button_menu"
-            android:text="@string/play_list"
-            android:textAppearance="@style/TextAppearance.AppCompat.Display4"
-            android:textStyle="bold"
-            android:textColor="@color/white"
-            android:shadowColor="@color/black"
-            android:shadowRadius="8"
-            app:layout_constraintStart_toEndOf="@+id/all_songs" />
+            android:layout_weight="0.5"
+            android:background="@color/black" />
 
         <Button
-            android:id="@+id/artist"
+            android:id="@+id/all_artists"
             style="@style/coolButton"
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
@@ -212,7 +204,7 @@
             android:shadowRadius="8"
             android:textAppearance="@style/TextAppearance.AppCompat.Display4"
             android:textStyle="bold"
-            app:layout_constraintStart_toEndOf="@+id/all_songs" />
+            app:layout_constraintEnd_toEndOf="parent" />
     </LinearLayout>
 
 

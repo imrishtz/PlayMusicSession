@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical" android:layout_width="match_parent"
+    android:layout_height="55dp">
+
+    <TextView
+        android:id="@+id/artist_header"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:text="@string/artists"
+        android:gravity="center_vertical"
+        android:textSize="30dp"
+        android:paddingTop="10dp"
+        android:paddingStart="18dp"
+        android:textColor="@color/white"
+        android:background="@color/black"></TextView>
+
+
+</LinearLayout>
