@@ -12,17 +12,19 @@ import android.widget.TextView;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.music.session.R;
-import com.music.session.model.SongIndexing;
-import com.music.session.model.SongsList;
+import com.music.session.model.Audio;
+import com.music.session.model.SongsListSongs;
 
-import java.util.ArrayList;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 
-public class SongsAdapter extends RecyclerView.Adapter<SongsAdapter.MyViewHolder> {
+public class SongsAdapter extends RecyclerView.Adapter<SongsAdapter.MyViewHolder>  {
     private final Context mContext;
-    private ArrayList<SongIndexing> mSongsData;
     private final static String TAG = "SongsAdapter";
+    private SongsListSongs mSongsListInstance;
 
-    public static class MyViewHolder extends RecyclerView.ViewHolder {
+    static class MyViewHolder extends RecyclerView.ViewHolder {
         // each data item is just a string in this case
         private View ViewRec;
         private TextView textView2;
@@ -37,10 +39,9 @@ public class SongsAdapter extends RecyclerView.Adapter<SongsAdapter.MyViewHolder
         }
     }
 
-    public SongsAdapter(ArrayList<SongIndexing> songsData, Context context) {
-        Log.v(TAG, "imri SongsAdapter constructor");
-        mSongsData = songsData;
+    SongsAdapter(Context context) {
         mContext = context;
+        mSongsListInstance = new SongsListSongs(mContext);
     }
 
     @Override
@@ -48,16 +49,15 @@ public class SongsAdapter extends RecyclerView.Adapter<SongsAdapter.MyViewHolder
                                                         int viewType) {
         View v =  LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.songs_recycler_item_constraint, parent, false);
-        MyViewHolder vh = new MyViewHolder(v);
-        return vh;
+        return new MyViewHolder(v);
     }
 
     @Override
     public void onBindViewHolder(MyViewHolder holder, final int position) {
-        int realPosition = SongsList.getRealIndexFromTitle(position);
-        String artistName = mSongsData.get(realPosition).getArtist();
-        String songTitle = mSongsData.get(realPosition).getTitle();
-        Bitmap bitMapClipArt = mSongsData.get(realPosition).getClipArt();
+        Audio audio = mSongsListInstance.getSong(position);
+        String artistName = audio.getArtist();
+        String songTitle = audio.getTitle();
+        Bitmap bitMapClipArt = audio.getClipArt();
         holder.textView2.setText(songTitle);
         holder.textView3.setText(artistName);
         if (bitMapClipArt != null) {
@@ -82,6 +82,7 @@ public class SongsAdapter extends RecyclerView.Adapter<SongsAdapter.MyViewHolder
 
     @Override
     public int getItemCount() {
-        return mSongsData.size();
+        return mSongsListInstance.getSize();
     }
+
 }

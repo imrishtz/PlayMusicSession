@@ -2,13 +2,15 @@
 
 package com.music.session.view;
 
-import android.app.Notification;
+import android.app.ProgressDialog;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.graphics.Bitmap;
+import android.media.AudioManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -20,81 +22,88 @@ import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.PopupMenu;
 import android.widget.SeekBar;
-import android.widget.Switch;
 import android.widget.TextView;
-import android.widget.Toast;
 
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.NotificationCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 
 import com.music.session.R;
+import com.music.session.model.Audio;
 import com.music.session.model.MediaPlayerService;
-import com.music.session.model.SongIndexing;
-import com.music.session.model.SongsList;
+import com.music.session.model.SongsListManager;
 import com.music.session.model.StorageUtil;
-import com.music.session.model.onClipartsReadyListener;
 
-import java.util.ArrayList;
 import java.util.Objects;
 
 public class MainActivity extends AppCompatActivity implements PopupMenu.OnMenuItemClickListener {
+    public static final String NO_AUDIO = "com.music.session.view.NO_AUDIO";
+    public static final String SHOW_MAIN = "com.music.session.view.SHOW_MAIN";
+    Context mContext;
+
     private MediaPlayerService player;
     boolean serviceBound = false;
-    private boolean isSongs = true;
+    Audio currentPlaying = null;
+
+    private static SongsListManager songsManager;
+
     private boolean isThreadRunning = false;
     private Handler mainHandler = new Handler();
-    private static StorageUtil storage;
+
     Button playPauseButton, skipNextButton, restartOrLastButton, menu;
-    SongIndexing currentPlaying = null;
     SeekBar seekBar;
     TextView totalTime;
     TextView songName;
     TextView artistAlbumName;
     ImageView currClipArt;
-    private int duration;
     AllSongs AllSongsFragment;
     Artists ArtistFragment;
-    ArrayList<SongIndexing> audioList;
     String TAG = "MainActivity";
-    int seekTo = -1;
+    private int duration;
+    private int seekTo = -1;
+
     Button allSongsFragmentButton, artistsFragmentButton;
     FragmentManager fragmentManager;
     FragmentTransaction fragmentTransaction;
     Fragment artistsFragment;
     Fragment allSongsFragment;
-    Context mContext;
+
     TextView seekBarHint;
-    Switch shuffleSwitch;
     private final int TIME_TO_GO_LAST_SONG = 3000;
     private boolean isShuffle = false;
-    public static final String BROADCAST_PLAY_NEW_AUDIO = "com.music.session.PlayNewAudio";
-    // Change to your package name
+    private ProgressDialog dialog;
+    private static boolean isFirstTime = true;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-        Log.v(TAG, "onCreate imri");
+        IntentFilter intentFilter = new IntentFilter(MainActivity.SHOW_MAIN);
+        intentFilter.addAction(NO_AUDIO);
+        registerReceiver(broadcastReceiver, intentFilter);
         StorageUtil.initStorage(getApplicationContext());
-        storage = StorageUtil.getInstance();
+        songsManager = SongsListManager.getManager(this);
+        Log.v(TAG, "onCreate imri firstTime" + isFirstTime);
         mContext = this;
-        SongsList.initSongsList(getApplicationContext());
-        ArtistFragment = new Artists(this);
+        intentFilter.addAction(MediaPlayerService.START_PLAYING);
+        intentFilter.addAction(MediaPlayerService.PAUSE_PLAYING);
         AllSongsFragment = new AllSongs(this);
-        storage.registerClipartsReadyListener(new ClipartsReadyListener());
-        //audioList = mSongListInstance.getAllSongs(this);
+        ArtistFragment = new Artists(this);
         Objects.requireNonNull(getSupportActionBar()).setDisplayShowTitleEnabled(false);
         getSupportActionBar().hide();
+        fragmentManager = getSupportFragmentManager();
+        fragmentTransaction = fragmentManager.beginTransaction();
+        allSongsFragment = AllSongsFragment;
 
+        setContentView(R.layout.activity_main);
         seekBar = findViewById(R.id.seekbar);
         songName = findViewById(R.id.song_name_music_player);
+        songName.setText(R.string.welcome);
         artistAlbumName = findViewById(R.id.artist_and_album_music_player);
+        artistAlbumName.setText(R.string.select_song);
         totalTime = findViewById(R.id.total_time);
         seekBarHint = findViewById(R.id.curr_time);
         currClipArt = findViewById(R.id.curr_clipart);
+
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onStartTrackingTouch(SeekBar seekBar) {
@@ -112,10 +121,11 @@ public class MainActivity extends AppCompatActivity implements PopupMenu.OnMenuI
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
-                if (player != null){
-                    player.seekTo(seekBar.getProgress());
+                int newProgress = seekBar.getProgress();
+                if (player != null ) {
+                    player.seekTo(newProgress);
                 } else {
-                    seekTo = seekBar.getProgress();
+                    seekTo = newProgress;
                 }
             }
         });
@@ -126,28 +136,28 @@ public class MainActivity extends AppCompatActivity implements PopupMenu.OnMenuI
                 showMenu(view);
             }
         });
-        playPauseButton = (Button) findViewById(R.id.play_pause);
+        playPauseButton = findViewById(R.id.play_pause);
         playPauseButton.setBackgroundResource(R.drawable.ic_play);
         playPauseButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 if (serviceBound) {
+                    Intent broadcastIntent;
                     if (player.isPlaying()) {
+                        broadcastIntent = new Intent(MediaPlayerService.ACTION_PAUSE);
                         playPauseButton.setBackgroundResource(R.drawable.ic_play);
-                        Intent broadcastIntent = new Intent(MediaPlayerService.ACTION_PAUSE);
-                        sendBroadcast(broadcastIntent);
                     } else {
+                        broadcastIntent = new Intent(MediaPlayerService.ACTION_PLAY);
                         playPauseButton.setBackgroundResource(R.drawable.ic_pause);
-                        Intent broadcastIntent = new Intent(MediaPlayerService.ACTION_PLAY);
-                        sendBroadcast(broadcastIntent);
                     }
+                    sendBroadcast(broadcastIntent);
                 } else {
-                    playAudio(storage.loadAudioIndex());
                     playPauseButton.setBackgroundResource(R.drawable.ic_pause);
+                    bindService();
                 }
             }
         });
-        skipNextButton = (Button) findViewById(R.id.skip_next_song);
+        skipNextButton = findViewById(R.id.skip_next_song);
         skipNextButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -156,7 +166,7 @@ public class MainActivity extends AppCompatActivity implements PopupMenu.OnMenuI
             }
         });
 
-        restartOrLastButton = (Button) findViewById(R.id.restart_or_last_song);
+        restartOrLastButton = findViewById(R.id.restart_or_last_song);
         restartOrLastButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -170,47 +180,75 @@ public class MainActivity extends AppCompatActivity implements PopupMenu.OnMenuI
                 }
             }
         });
-
-        allSongsFragmentButton = (Button) findViewById(R.id.all_songs);
-        artistsFragmentButton = (Button) findViewById(R.id.all_artists);
-        fragmentManager = getSupportFragmentManager();
-        fragmentTransaction = fragmentManager.beginTransaction();
-        //mMediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
-        allSongsFragment = AllSongsFragment;
-        fragmentTransaction.add(R.id.container, allSongsFragment, "check");
-        fragmentTransaction.commit();
-        allSongsFragmentButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                getSupportFragmentManager()
-                        .beginTransaction()
-                        .replace(R.id.container, allSongsFragment)
-                        .commit();
-                isSongs = true;
-                MediaPlayerService.setListType(isSongs);
-                allSongsFragmentButton.setBackground(getDrawable(R.drawable.button_menu_pressed));
-                artistsFragmentButton.setBackground(getDrawable(R.drawable.button_menu));
+        if (isFirstTime) {
+            dialog = new ProgressDialog(MainActivity.this);
+            dialog.setMessage("Loading your media");
+            dialog.show();
+            mainHandler.postDelayed(timer, 5000);
+        } else {
+            mainHandler.post(loadFragmentAgain);
+        }
+    }
+    private BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            Log.i(TAG, "onReceive: intent.getAction()" + intent.getAction());
+            String action = intent.getAction();
+            if (action != null) {
+                if (isFirstTime) {
+                    if (action.equals(SHOW_MAIN)) {
+                        dialog.dismiss();
+                        mainHandler.post(loadFragmentAgain);
+                        isFirstTime = false;
+                        mainHandler.removeCallbacks(timer);
+                    } else if (action.equals(NO_AUDIO)) {
+                        mainHandler.post(timer);
+                    }
+                } else if (action.equals(MediaPlayerService.START_PLAYING)) {
+                    playPauseButton.setBackgroundResource(R.drawable.ic_pause);
+                } else if (action.equals(MediaPlayerService.PAUSE_PLAYING)) {
+                    playPauseButton.setBackgroundResource(R.drawable.ic_play);
+                }
             }
-        });
-        artistsFragment = ArtistFragment;
-        artistsFragmentButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                getSupportFragmentManager()
-                        .beginTransaction()
-                        .replace(R.id.container, artistsFragment)
-                        .commit();
-                isSongs = false;
-                MediaPlayerService.setListType(isSongs);
-                artistsFragmentButton.setBackground(getDrawable(R.drawable.button_menu_pressed));
-                allSongsFragmentButton.setBackground(getDrawable(R.drawable.button_menu));
+        }
+    };
 
-            }
-        });
-        allSongsFragmentButton.performClick();
-        setCurrentPlaying();
+
+    public void playAudioPressed() {
+        playPauseButton.setBackgroundResource(R.drawable.ic_pause);
+    }
+    public void playAudio(int audioIndex, boolean isSongs) {
+        songsManager.setListType(isSongs ? SongsListManager.SONGS : SongsListManager.ARTISTS);
+        playAudio(audioIndex);
     }
 
+    void bindService() {
+        Intent playerIntent = new Intent(this, MediaPlayerService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(playerIntent);
+        } else {
+            startService(playerIntent);
+        }
+        bindService(playerIntent, serviceConnection, Context.BIND_AUTO_CREATE);
+        if (!isThreadRunning) {
+            isThreadRunning = true;
+            mainHandler.post(r);
+        }
+    }
+    public void playAudio(int audioIndex) {
+        playAudioPressed();
+        if (seekTo == 0) {
+            seekBar.setProgress(seekTo);
+        }
+        duration = 0;
+        songsManager.storeIndex(audioIndex);
+        if (!serviceBound) {
+            bindService();
+        } else {
+            Intent broadcastIntent = new Intent(MediaPlayerService.BROADCAST_PLAY_NEW_AUDIO);
+            sendBroadcast(broadcastIntent);
+        }
+    }
     //Binding this Client to the AudioPlayer Service
     private ServiceConnection serviceConnection = new ServiceConnection() {
         @Override
@@ -220,169 +258,118 @@ public class MainActivity extends AppCompatActivity implements PopupMenu.OnMenuI
             player = binder.getService();
             Log.i(TAG, "onServiceConnected: imri" + player);
             serviceBound = true;
-           // Toast.makeText(MainActivity.this, "Service Bound", Toast.LENGTH_SHORT).show();
         }
 
         @Override
         public void onServiceDisconnected(ComponentName name) {
+            Log.i(TAG, "onServiceDisconnected: imri" + player);
+            isThreadRunning = false;
             serviceBound = false;
         }
     };
-    public void playAudio(int audioIndex, boolean isSongs) {
-        MediaPlayerService.setListType(isSongs);
-        playAudio(audioIndex);
-    }
-    public void playAudio(int audioIndex) {
-        //Check is service is active
-        if (seekTo == 0) {
-            seekBar.setProgress(seekTo);
-        }
-        duration = 0;
-        if (!serviceBound) {
-            //Store Serializable audioList to SharedPreferences
-            storage.storeAudio(audioList);
-            storage.storeAudioIndex(audioIndex);
 
-            Intent playerIntent = new Intent(this, MediaPlayerService.class);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(playerIntent);
-            } else {
-                startService(playerIntent);
-            }
-            bindService(playerIntent, serviceConnection, Context.BIND_AUTO_CREATE);
-        } else {
-            //Store the new audioIndex to SharedPreferences
-            storage.storeAudioIndex(audioIndex);
-            //Service is active
-            //Send a broadcast to the service -> PLAY_NEW_AUDIO
-            Intent broadcastIntent = new Intent(BROADCAST_PLAY_NEW_AUDIO);
-
-            sendBroadcast(broadcastIntent);
-        }
-
-        playPauseButton.setBackgroundResource(R.drawable.ic_pause);
-
-        if (!isThreadRunning) {
-            new Thread(new UiThreadRunner()).start();
-           // new Handler().post(new UiThreadRunner() );
-            isThreadRunning = true;
-        }
-    }
-
-    private void loadAudio() {
-        if (isSongs) {
-            storage.storeAudio(((AllSongs) allSongsFragment).getAllSongs());
-        } else {
-            storage.storeAudio(((Artists) artistsFragment).getAllSongs());
-        }
-        Log.v(TAG, "cursor.close");
-    }
-
-
-
-    public class UiThreadRunner implements Runnable {
+    Runnable r = new Runnable() {
         int currentPosition;
         boolean isPassedTimeVisible = true;
-        SongIndexing temp = null;
+        Audio temp = null;
         @Override
         public void run() {
-            // Code here will run in UI thread
-            Log.v("imri", "imri UiThreadRunner run");
-            isThreadRunning = true;
-            while (true) {
-                if (serviceBound) {
-                    int i = 0;
-                    while (player.isPlaying()) {
-                        playPauseButton.setBackgroundResource(R.drawable.ic_pause);
-                        try {
-                            mainHandler.post(new Runnable() {
-                                @Override
-                                public void run() {
-                                    if (seekTo != 0) {
-                                        player.seekTo(seekTo);
-                                        seekTo = 0;
-                                    }
-                                    currentPosition = player.getCurrentPosition();
-                                    temp = currentPlaying;
-                                    currentPlaying = audioList.get(player.getAudioIndex());
-                                    if (temp != currentPlaying) {
-                                        Log.v(TAG,"imri currentPlaying = " + currentPlaying.getRealIndex());
-                                        Bitmap currBitmap = currentPlaying.getClipArt();
-                                        if (currBitmap != null) {
-                                            currClipArt.setImageBitmap(currBitmap);
-                                        } else {
-                                            currClipArt.setImageDrawable(getDrawable(R.mipmap.ic_simplay_op));
-                                        }
-                                        duration = Integer.valueOf(currentPlaying.getDuration());
-                                        seekBar.setMax(duration);
-                                        String time = getTime(duration);
-                                        totalTime.setText(time);
-                                        songName.setText(currentPlaying.getTitle());
-                                        artistAlbumName.setText(currentPlaying.getArtist() + " - " + currentPlaying.getAlbum());
-                                        artistAlbumName.setSelected(true);
-                                    }
-                                    seekBar.setProgress(currentPosition);
-                                    if (player.isPaused()) {
-                                        if (isPassedTimeVisible) {
-                                            seekBarHint.setVisibility(View.INVISIBLE);
-                                            isPassedTimeVisible = false;
-                                        } else {
-                                            seekBarHint.setVisibility(View.VISIBLE);
-                                            isPassedTimeVisible = true;
-                                        }
-                                    }
-                                }
-                            });
-
-                            Thread.sleep(400);
-                        } catch (InterruptedException e) {
-                            Log.v(TAG," currentPlaying InterruptedException e = " + currentPlaying.getDuration());
-                            e.printStackTrace();
-                            break;
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                            Log.v(TAG," currentPlaying Exception e = " + currentPlaying.getDuration());
-                            break;
+            Log.i(TAG, "run: imri");
+            if (serviceBound) {
+                /*try {*/
+                if (player != null && player.isPlaying()) {
+                    if (seekTo != 0) {
+                        player.seekTo(seekTo);
+                        seekTo = 0;
+                    }
+                    currentPosition = player.getCurrentPosition();
+                    temp = currentPlaying;
+                    currentPlaying = player.getActiveAudio();
+                    if (temp != currentPlaying) {
+                        Log.v(TAG, "imri currentPlaying = " + currentPlaying.index);
+                        Bitmap currBitmap = currentPlaying.getClipArt();
+                        if (currBitmap != null) {
+                            currClipArt.setImageBitmap(currBitmap);
+                        } else {
+                            currClipArt.setImageDrawable(getDrawable(R.mipmap.ic_simplay_op));
+                        }
+                        duration = Integer.valueOf(currentPlaying.getDuration());
+                        seekBar.setMax(duration);
+                        String time = getTime(duration);
+                        totalTime.setText(time);
+                        songName.setText(currentPlaying.getTitle());
+                        artistAlbumName.setText((currentPlaying.getArtist() + " - " + currentPlaying.getAlbum()));
+                        artistAlbumName.setSelected(true);
+                    }
+                    seekBar.setProgress(currentPosition);
+                    if (player.isPaused()) {
+                        if (isPassedTimeVisible) {
+                            seekBarHint.setVisibility(View.INVISIBLE);
+                            isPassedTimeVisible = false;
+                        } else {
+                            seekBarHint.setVisibility(View.VISIBLE);
+                            isPassedTimeVisible = true;
                         }
                     }
-                    playPauseButton.setBackgroundResource(R.drawable.ic_play);
                 }
             }
+            mainHandler.postDelayed(this, 300);
         }
-    }
+    };
+    Runnable timer = new Runnable() {
+        @Override
+        public void run() {
+            artistAlbumName.setText(getString(R.string.no_audio));
+            playPauseButton.setOnClickListener(null);
+            artistsFragmentButton.setOnClickListener(null);
+            allSongsFragmentButton.setOnClickListener(null);
+            skipNextButton.setOnClickListener(null);
+            restartOrLastButton.setOnClickListener(null);
+            menu.setOnClickListener(null);
+            seekBar.setOnSeekBarChangeListener(null);
+            TextView tv = findViewById(R.id.no_songs_text);
+            tv.setVisibility(View.VISIBLE);
+            dialog.dismiss();
+        }
+    };
+    Runnable loadFragmentAgain = new Runnable() {
+        @Override
+        public void run() {
+            try {
+                allSongsFragmentButton = findViewById(R.id.all_songs);
+                artistsFragmentButton = findViewById(R.id.all_artists);
+                allSongsFragmentButton.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        getSupportFragmentManager()
+                                .beginTransaction()
+                                .replace(R.id.container, allSongsFragment)
+                                .commit();
+                        allSongsFragmentButton.setBackground(getDrawable(R.drawable.button_menu_pressed));
+                        artistsFragmentButton.setBackground(getDrawable(R.drawable.button_menu));
+                    }
+                });
+                artistsFragment = ArtistFragment;
+                artistsFragmentButton.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        getSupportFragmentManager()
+                                .beginTransaction()
+                                .replace(R.id.container, artistsFragment)
+                                .commit();
+                        artistsFragmentButton.setBackground(getDrawable(R.drawable.button_menu_pressed));
+                        allSongsFragmentButton.setBackground(getDrawable(R.drawable.button_menu));
 
-    private void setCurrentPlaying() {
-        audioList = storage.loadAudio();
-        int audioIndex = storage.loadAudioIndex();
-        Log.v(TAG, "imri audioIndex = " + audioIndex + "audioList" + audioList);
-        if (audioList != null && !audioList.isEmpty() && audioIndex != SongsList.INVALID_INDEX) {
-            currentPlaying = audioList.get(audioIndex);
-            Log.v(TAG, "currentPlaying = " + currentPlaying.getDuration());
-            duration = Integer.valueOf(currentPlaying.getDuration());
-            seekBar.setMax(duration);
-            String time = getTime(duration);
-            totalTime.setText(time);
-            songName.setText(currentPlaying.getTitle());
-            if (currentPlaying.getClipArt() != null) {
-                currClipArt.setImageBitmap(currentPlaying.getClipArt());
-            } else {
-                currClipArt.setImageDrawable(getDrawable(R.mipmap.ic_simplay_op));
+                    }
+                });
+                fragmentTransaction.add(R.id.container, allSongsFragment, "check");
+                fragmentTransaction.commit();
+                allSongsFragmentButton.performClick();
+            } catch (Exception e) {
+                mainHandler.postDelayed(this, 2000);
             }
-            artistAlbumName.setText((currentPlaying.getArtist() + " - " + currentPlaying.getAlbum()));
-        } else if (audioList != null && audioList.isEmpty()){
-            Toast.makeText(MainActivity.this, "You have no audio files in your phone :(", Toast.LENGTH_LONG).show();
-            songName.setText("");
-            seekBarHint.setText("");
-            totalTime.setText("");
-            artistAlbumName.setText("");
-        } else { //first time opening app
-            loadAudio();
-            songName.setText("");
-            seekBarHint.setText("");
-            totalTime.setText("");
-            artistAlbumName.setText("");
         }
-    }
+    };
 
     String getTime(int timeInMilSec) {
         long second = (timeInMilSec / 1000) % 60;
@@ -398,25 +385,23 @@ public class MainActivity extends AppCompatActivity implements PopupMenu.OnMenuI
     }
 
     @Override
-    public void onSaveInstanceState(Bundle savedInstanceState) {
-        savedInstanceState.putBoolean("ServiceState", serviceBound);
-        super.onSaveInstanceState(savedInstanceState);
-    }
-
-    @Override
-    public void onRestoreInstanceState(Bundle savedInstanceState) {
-        super.onRestoreInstanceState(savedInstanceState);
-        serviceBound = savedInstanceState.getBoolean("ServiceState");
-    }
-
-    @Override
     protected void onDestroy() {
         super.onDestroy();
+        Log.i(TAG, "onDestroy: imri");
+        mainHandler.removeCallbacks(r);
+        unregisterReceiver(broadcastReceiver);
         if (serviceBound) {
-            unbindService(serviceConnection);
+            mContext.unbindService(serviceConnection);
             //service is active
             player.stopSelf();
         }
+
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        setVolumeControlStream(AudioManager.STREAM_MUSIC);
     }
 
     public void showMenu(View v) {
@@ -445,28 +430,9 @@ public class MainActivity extends AppCompatActivity implements PopupMenu.OnMenuI
         }
         return true;
     }
-     class ClipartsReadyListener implements onClipartsReadyListener {
-        @Override
-        public void onClipartsReadyEvent() {
-            audioList = storage.loadAudio();
-        }
-    }
 
     @Override
     public void onBackPressed() {
-        new AlertDialog.Builder(this)
-                .setTitle("Really Exit?")
-                .setMessage("Are you sure you want to exit?")
-                .setNegativeButton(android.R.string.no, null)
-                .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
-
-                    public void onClick(DialogInterface arg0, int arg1) {
-                        MainActivity.super.onBackPressed();
-                        Intent intent = new Intent(MainActivity.this, AskPermission.class);
-                        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                        intent.putExtra("EXIT", true);
-                        startActivity(intent);
-                    }
-                }).create().show();
+        moveTaskToBack(true);
     }
 }

@@ -1,14 +1,9 @@
 package com.music.session.model;
 
-import android.app.Activity;
-import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
-import android.app.Service;
 import android.content.BroadcastReceiver;
-import android.content.ComponentName;
-import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -18,18 +13,13 @@ import android.media.AudioAttributes;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
-import android.media.session.MediaController;
-import android.media.session.MediaSession;
 import android.media.session.MediaSessionManager;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.os.RemoteException;
-
 import android.support.v4.media.MediaBrowserCompat;
-import android.support.v4.media.MediaDescriptionCompat;
 import android.support.v4.media.MediaMetadataCompat;
 import android.support.v4.media.session.MediaControllerCompat;
 import android.support.v4.media.session.MediaSessionCompat;
@@ -38,76 +28,57 @@ import android.telephony.PhoneStateListener;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Log;
-import android.view.KeyEvent;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.core.app.NotificationCompat;
-import androidx.core.content.ContextCompat;
 import androidx.media.MediaBrowserServiceCompat;
-import androidx.media.session.MediaButtonReceiver;
 
-import com.music.session.view.MainActivity;
 import com.music.session.R;
-
-import org.w3c.dom.Node;
+import com.music.session.view.MainActivity;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
-import java.util.Stack;
 
 public class MediaPlayerService extends MediaBrowserServiceCompat implements MediaPlayer.OnCompletionListener,
         MediaPlayer.OnPreparedListener, MediaPlayer.OnErrorListener, MediaPlayer.OnSeekCompleteListener,
         MediaPlayer.OnInfoListener, MediaPlayer.OnBufferingUpdateListener,
-
         AudioManager.OnAudioFocusChangeListener {
+    public static final String START_PLAYING = "com.music.session.START_PLAYING";
+    public static final String PAUSE_PLAYING = "com.music.session.PAUSE_PLAYING";
     private static final String MY_MEDIA_ROOT_ID = "media_root_id";
     private static final String MY_EMPTY_MEDIA_ROOT_ID = "empty_root_id";
-    private MediaBrowserCompat mediaBrowserCompat;
     private static String TAG = "MediaPlayerService";
-    private MediaButtonReceiver mediaButtonReceiver;
+    public static final String BROADCAST_PLAY_NEW_AUDIO = "com.music.session.PlayNewAudio";
     private static final int PLAYBACK_STATUS_PLAYING = 263;
     private static final int PLAYBACK_STATUS_PAUSED = 264;
     private static boolean isShuffle = false;
-    private static boolean isSongs = true;
-    // Binder given to clients
+
     private final IBinder iBinder = new LocalBinder();
-
+    private SongsListManager songsManager;
     private AudioManager audioManager;
-
     private MediaPlayer mediaPlayer;
-    //path to the audio file
-    private Uri mediaFile;
-    //Used to pause/resume MediaPlayer
     private int resumePosition;
-    private MediaController mController;
-    private LinkedList<Integer> playedSongs = new LinkedList<>();
     Integer currSongInList = -1;
-    private boolean isPrevious = false;
     //Handle incoming phone calls
     private boolean ongoingCall = false;
     private PhoneStateListener phoneStateListener;
     private TelephonyManager telephonyManager;
-    //List of available Audio files
-    private ArrayList<SongIndexing> audioList;
     private int audioIndex = 0;
-    private SongIndexing activeAudio; //an object of the currently playing audio
+    private Audio activeAudio; //an object of the currently playing audio
     public static final String ACTION_PLAY = "com.music.session.ACTION_PLAY";
     public static final String ACTION_PAUSE = "com.music.session.ACTION_PAUSE";
     public static final String ACTION_PREVIOUS = "com.music.session.ACTION_PREVIOUS";
     public static final String ACTION_NEXT = "com.music.session.ACTION_NEXT";
     public static final String ACTION_STOP = "com.music.session.ACTION_STOP";
 
-    //MediaSession
     private MediaSessionManager mediaSessionManager;
     private MediaSessionCompat mediaSession;
     private MediaControllerCompat.TransportControls transportControls;
 
-    //AudioPlayer notification ID
     private static final int NOTIFICATION_ID = 101;
 
     private void initMediaPlayer() {
@@ -119,28 +90,16 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
         mediaPlayer.setOnBufferingUpdateListener(this);
         mediaPlayer.setOnSeekCompleteListener(this);
         mediaPlayer.setOnInfoListener(this);
+        mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
+        mediaPlayer.setVolume(1.0f, 1.0f);
         //Reset so that the MediaPlayer is not pointing to another data source
         mediaPlayer.reset();
 
-        AudioAttributes aa = new AudioAttributes.Builder()
-                .setFlags(AudioAttributes.USAGE_MEDIA | AudioAttributes.CONTENT_TYPE_MUSIC)
-                .build();
-        mediaPlayer.setAudioAttributes(aa);
         // Open a specific media item using ParcelFileDescriptor.
-        ContentResolver resolver = getApplicationContext()
-                .getContentResolver();
+        mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
 
         if (activeAudio != null) {
             try {
-                if (!isPrevious) {
-                    ++currSongInList;
-                    if (currSongInList + 1 > playedSongs.size()) {
-                        playedSongs.add(activeAudio.mIndex);
-                    }
-                } else { //isPrevious - not changing playedSongs
-                    isPrevious = false;
-                }
-                Log.i(TAG, "imri initMediaPlayer: currSongInList" + currSongInList + " playedSongs" + playedSongs);
                 mediaPlayer.setDataSource(getApplicationContext(), Uri.parse(activeAudio.getUri()));
             } catch (IOException e) {
                 e.printStackTrace();
@@ -151,7 +110,13 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
     }
 
     public boolean isPlaying() {
-        return mediaPlayer.isPlaying();
+        boolean bool = false;
+        try {
+            bool = mediaPlayer.isPlaying();
+        }catch (IllegalStateException e) {
+            e.printStackTrace();
+        }
+        return bool;
     }
 
     private void playMedia() {
@@ -204,10 +169,6 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
         resumePosition = progress;
     }
 
-    public int getAudioIndex() {
-        return audioIndex;
-    }
-
     @Override
     public IBinder onBind(Intent intent) {
         return iBinder;
@@ -233,32 +194,16 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
     }
     @Override
     public void onLoadChildren(@NonNull String parentId, @NonNull Result<List<MediaBrowserCompat.MediaItem>> result) {
-//  Browsing not allowed
         if (TextUtils.equals(MY_EMPTY_MEDIA_ROOT_ID, parentId)) {
             result.sendResult(null);
             return;
         }
-
-        // Assume for example that the music catalog is already loaded/cached.
-
         List<MediaBrowserCompat.MediaItem> mediaItems = new ArrayList<>();
-
-        // Check if this is the root menu:
-        if (MY_MEDIA_ROOT_ID.equals(parentId)) {
-            // Build the MediaItem objects for the top level,
-            // and put them in the mediaItems list...
-        } else {
-            // Examine the passed parentMediaId to see which submenu we're at,
-            // and put the children of that menu in the mediaItems list...
-        }
         result.sendResult(mediaItems);
     }
 
     @Override
-    public void onBufferingUpdate(MediaPlayer mp, int percent) {
-        //Invoked indicating buffering status of
-        //a media resource being streamed over the network.
-    }
+    public void onBufferingUpdate(MediaPlayer mp, int percent) {}
 
     @Override
     public void onCompletion(MediaPlayer mp) {
@@ -342,6 +287,7 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
 
         int status;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Log.i(TAG, "requestFocus: imri");
             AudioFocusRequest.Builder afBuilder = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN);
             AudioAttributes.Builder aaBuilder = new AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC);
@@ -358,36 +304,8 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
         return false;
     }
 
-    public boolean abandonFocus() {
-        if (!handleAudioFocus) {
-            return true;
-        }
-        if (audioManager == null) {
-            return false;
-        }
-
-        startRequested = false;
-        int status = audioManager.abandonAudioFocus(this);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            if (lastFocusRequest != null) {
-                status = audioManager.abandonAudioFocusRequest(lastFocusRequest);
-                if (AudioManager.AUDIOFOCUS_REQUEST_GRANTED == status) {
-                    // reset lastFocusRequest on success, there is no reason to try again
-                    lastFocusRequest = null;
-                }
-            } else {
-                // no focus was requested, return success
-                status = audioManager.AUDIOFOCUS_REQUEST_GRANTED;
-            }
-        } else {
-            status = audioManager.abandonAudioFocus(this);
-        }
-        return AudioManager.AUDIOFOCUS_REQUEST_GRANTED == status;
-    }
-
     protected AudioFocusRequest lastFocusRequest;
     protected boolean startRequested = false;
-    protected boolean pausedForLoss = false;
     protected int currentFocus = 0;
     protected boolean handleAudioFocus = true;
 
@@ -407,9 +325,8 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
     public void onCreate() {
         super.onCreate();
         callStateListener();
-        //ACTION_AUDIO_BECOMING_NOISY -- change in audio outputs -- BroadcastReceiver
-        registerBecomingNoisyReceiver();
-        //Listen for new Audio to play -- BroadcastReceiver
+        songsManager = SongsListManager.getManager();
+
         register_playNewAudio();
         register_handleActions();
         audioManager = (AudioManager)getApplicationContext().getSystemService(Context.AUDIO_SERVICE);
@@ -421,24 +338,16 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
         mediaFilter.setPriority(30000);
 
     }
-    public static void setListType(boolean isSongs) {
-        MediaPlayerService.isSongs = isSongs;
-    }
 
     //The system calls this method when an activity, requests the service be started
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         try {
-            //Load data from SharedPreferences
-            Log.i(TAG, "imri onStartCommand: intent" + intent);
-            //MediaButtonReceiver.handleIntent(mediaSession, intent);
-            StorageUtil storage = StorageUtil.getInstance();
-            audioList = storage.loadAudio();
-            audioIndex = storage.loadAudioIndex();
+            audioIndex = songsManager.loadIndex();
 
-            if (audioIndex != SongsList.INVALID_INDEX && audioIndex < audioList.size()) {
+            if (audioIndex != AbstractSongsList.INVALID_INDEX && audioIndex < songsManager.getSize()) {
                 //index is in a valid range
-                activeAudio = audioList.get(audioIndex);
+                activeAudio = songsManager.getSong(audioIndex);
             } else {
                 stopSelf();
             }
@@ -453,20 +362,12 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
         }
 
         if (mediaSessionManager == null) {
-            try {
-                initMediaSession();
-                initMediaPlayer();
-            } catch (RemoteException e) {
-                e.printStackTrace();
-                stopSelf();
-            }
+            initMediaSession();
+            initMediaPlayer();
             if (isPlaying()) {
                 buildNotification(PLAYBACK_STATUS_PLAYING);
             }
         }
-
-
-        // TODO IMRI ADD ^^
         handleIncomingActions(intent);
 
         return super.onStartCommand(intent, flags, startId);
@@ -488,11 +389,14 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
         removeNotification();
 
         //unregister BroadcastReceivers
-        unregisterReceiver(becomingNoisyReceiver);
+        //if (becomingNoisyReceiver != null) {
+         //   unregisterReceiver(becomingNoisyReceiver);
+        //}
         unregisterReceiver(playNewAudio);
         unregisterReceiver(handleActions);
 
         //clear cached playlist
+
         if (StorageUtil.getInstance() != null)
              StorageUtil.getInstance().clearCachedAudioPlaylist() ;
     }
@@ -503,17 +407,20 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
         public void onReceive(Context context, Intent intent) {
             Log.i(TAG, "onReceive: imri becomingNoisyReceiver");
             //pause audio on ACTION_AUDIO_BECOMING_NOISY
-            pauseMedia();
-            buildNotification(PLAYBACK_STATUS_PAUSED);
+            if (AudioManager.ACTION_AUDIO_BECOMING_NOISY.equals(intent.getAction())) {
+                pauseMedia();
+                buildNotification(PLAYBACK_STATUS_PAUSED);
+            }
         }
     };
 
     private void registerBecomingNoisyReceiver() {
-        //register after getting audio focus
         IntentFilter intentFilter = new IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY);
+        //register after getting audio focus
         registerReceiver(becomingNoisyReceiver, intentFilter);
     }
 
+    static boolean wasPlaying = false;
     //Handle incoming phone calls
     private void callStateListener() {
         // Get the telephony manager
@@ -527,7 +434,8 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
                     //pause the MediaPlayer
                     case TelephonyManager.CALL_STATE_OFFHOOK:
                     case TelephonyManager.CALL_STATE_RINGING:
-                        if (mediaPlayer != null) {
+                        if (isPlaying()) {
+                            wasPlaying = true;
                             pauseMedia();
                             ongoingCall = true;
                         }
@@ -535,9 +443,10 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
                     case TelephonyManager.CALL_STATE_IDLE:
                         // Phone idle. Start playing.
                         if (mediaPlayer != null) {
-                            if (ongoingCall) {
+                            if (ongoingCall && wasPlaying) {
                                 ongoingCall = false;
                                 resumeMedia();
+                                wasPlaying = false;
                             }
                         }
                         break;
@@ -556,9 +465,9 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
 
             //Get the new media index form SharedPreferences
             audioIndex = StorageUtil.getInstance().loadAudioIndex();
-            if (audioIndex != SongsList.INVALID_INDEX && audioIndex < audioList.size()) {
+            if (audioIndex != AbstractSongsList.INVALID_INDEX && audioIndex < songsManager.getSize()) {
                 //index is in a valid range
-                activeAudio = audioList.get(audioIndex);
+                activeAudio = songsManager.getSong(audioIndex);
             } else {
                 stopSelf();
             }
@@ -585,12 +494,11 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
 
     private void register_playNewAudio() {
         //Register playNewMedia receiver
-        IntentFilter filter = new IntentFilter(MainActivity.BROADCAST_PLAY_NEW_AUDIO);
+        IntentFilter filter = new IntentFilter(BROADCAST_PLAY_NEW_AUDIO);
         registerReceiver(playNewAudio, filter);
     }
-    private PlaybackStateCompat.Builder stateBuilder;
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
-    private void initMediaSession() throws RemoteException {
+    private void initMediaSession() {
         if (mediaSessionManager != null) return; //mediaSessionManager exists
 
         mediaSessionManager = (MediaSessionManager) getSystemService(Context.MEDIA_SESSION_SERVICE);
@@ -604,7 +512,7 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
         //Set mediaSession's MetaData
         updateMetaData();
         // Set an initial PlaybackState with ACTION_PLAY, so media buttons can start the player
-        stateBuilder = new PlaybackStateCompat.Builder()
+        PlaybackStateCompat.Builder stateBuilder = new PlaybackStateCompat.Builder()
                 .setActions(
                         PlaybackStateCompat.ACTION_PLAY |
                                 PlaybackStateCompat.ACTION_PAUSE |
@@ -615,36 +523,32 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
         mediaSession.setPlaybackState(stateBuilder.build());
 
         Log.v(TAG, "imri mediaSession.setCallback");
-        // Attach Callback to receive MediaSession updates
+
         mediaSession.setCallback(new MediaSessionCompat.Callback() {
-            // Implement callbacks
-/*
-            @Override
-            public boolean onMediaButtonEvent(Intent mediaButtonEvent) {
-                KeyEvent keyEvent = mediaButtonEvent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
-                return super.onMediaButtonEvent(mediaButtonEvent);
-            }
-*/
             @Override
             public void onPlay() {
                 super.onPlay();
-                Log.v(TAG, "imri onPlay");
-                resumeMedia();
-                buildNotification(PLAYBACK_STATUS_PLAYING);
+                if (!isPlaying()) {
+                    sendBroadcast(new Intent(MediaPlayerService.START_PLAYING));
+                    registerBecomingNoisyReceiver();
+                    resumeMedia();
+                    buildNotification(PLAYBACK_STATUS_PLAYING);
+                } else {
+                    onPause();
+                }
             }
 
             @Override
             public void onPause() {
                 super.onPause();
                 pauseMedia();
-                Log.v(TAG, "imri onPause");
+                sendBroadcast(new Intent(MediaPlayerService.PAUSE_PLAYING));
                 buildNotification(PLAYBACK_STATUS_PAUSED);
             }
 
             @Override
             public void onSkipToNext() {
                 super.onSkipToNext();
-                Log.v(TAG, "imri onSkipToNext");
                 skipToNext();
                 updateMetaData();
                 buildNotification(PLAYBACK_STATUS_PLAYING);
@@ -663,6 +567,7 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
             public void onStop() {
                 super.onStop();
                 Log.v(TAG, "imri onStop");
+                unregisterReceiver(becomingNoisyReceiver);
                 removeNotification();
                 //Stop the service
                 stopSelf();
@@ -681,8 +586,8 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
         //Bitmap albumArt = BitmapFactory.decodeResource(getResources(),
         //        R.drawable.image); //replace with medias albumArt
         // Update the current metadata
-        if (audioList != null) {
-            Bitmap albumArt = audioList.get(audioIndex).getClipArt();
+        if (!songsManager.isEmptyList()) {
+            Bitmap albumArt = songsManager.getSong(audioIndex).getClipArt();
             mediaSession.setMetadata(new MediaMetadataCompat.Builder()
                     .putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, albumArt)
                     .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, activeAudio.getArtist())
@@ -692,7 +597,7 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
         }
     }
 
-    SongIndexing getActiveAudio() {
+    public Audio getActiveAudio() {
         return activeAudio;
     }
 
@@ -701,30 +606,21 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
     }
 
     private void skipToNext() {
+        boolean isSongs = true;
         Log.v(TAG, "imri skipToNext: current audioIndex = " + audioIndex +
-                " audioList.size() = " + audioList.size() + " isShuffle = " + isShuffle +
-                " isSongs =" + isSongs + " currSongInList =" + currSongInList + " playedSongs " + playedSongs);
-        if ((currSongInList + 1) < playedSongs.size()) {
-            audioIndex = playedSongs.get(currSongInList + 1);
-        } else if (isShuffle) {
+                " audioList.size() = " + songsManager.getSize() + " isShuffle = " + isShuffle +
+                " isSongs =" + isSongs + " currSongInList =" + currSongInList);
+        if (isShuffle) {
             Random rand = new Random();
-            audioIndex = rand.nextInt((audioList.size() - 1) + 1);
-        } else {
-            int nextIndex;
-            if (isSongs) {
-                int titleIndex = SongsList.getTitleIndexFromReal(audioIndex);
-                nextIndex = SongsList.getRealIndexFromTitle(++titleIndex);
-            } else {
-                int artistIndex = SongsList.getArtistIndexFromReal(audioIndex);
-                nextIndex = SongsList.getRealIndexFromArtist(++artistIndex);
+            audioIndex = rand.nextInt((songsManager.getSize() - 1) + 1);
+        } else {  // regular
+            ++audioIndex;
+            if (audioIndex >= songsManager.getSize()) {
+                audioIndex = 0;
             }
-            if (nextIndex >= audioList.size()) {
-                nextIndex = 0;
-            }
-            audioIndex = nextIndex;
         }
         //if last in playlist
-        activeAudio = audioList.get(audioIndex);
+        activeAudio = songsManager.getSong(audioIndex);
 
         //Update stored index
         StorageUtil.getInstance().storeAudioIndex(audioIndex);
@@ -737,24 +633,11 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
     }
 
     private void skipToPrevious() {
-        int prevToPlay = -1;
-        Log.v(TAG, "imri skipToPrevious() audioIndex" + audioIndex);
-        if (playedSongs.size() > 0 && currSongInList > 0) {
-            prevToPlay = playedSongs.get(--currSongInList);
-            audioIndex = audioList.get(prevToPlay).mIndex;
-            isPrevious = true;
-            Log.v(TAG, "imri skipToPrevious() prevToPlay" + prevToPlay + " activeAudio = " + activeAudio.getRealIndex());
-        } else { // reached last song
-            if (audioIndex == 0) {
-                //if first in playlist
-                //set index to the last of audioList
-                audioIndex = audioList.size() - 1;
-            } else {
-                //get previous in playlist
-                --audioIndex;
-            }
+        --audioIndex;
+        if (audioIndex < 0) {
+            audioIndex = songsManager.getSize() - 1;
         }
-        activeAudio = audioList.get(audioIndex);
+        activeAudio = songsManager.getSong(audioIndex);
         //Update stored index
         StorageUtil.getInstance().storeAudioIndex(audioIndex);
 
@@ -766,7 +649,9 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
 
     private void removeNotification() {
         NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        notificationManager.cancel(NOTIFICATION_ID);
+        if (notificationManager != null ) {
+            notificationManager.cancel(NOTIFICATION_ID);
+        }
     }
 
     private PendingIntent playbackAction(int actionNumber) {
@@ -807,43 +692,24 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
         if (playbackAction == null || playbackAction.getAction() == null) return;
         Log.i(TAG, "handleIncomingActions: imri playbackAction" + playbackAction);
         String actionString = playbackAction.getAction();
+
+        Intent intent = new Intent(START_PLAYING);
         if (actionString.equalsIgnoreCase(ACTION_PLAY)) {
             transportControls.play();
         } else if (actionString.equalsIgnoreCase(ACTION_PAUSE)) {
+            intent = new Intent(PAUSE_PLAYING);
             transportControls.pause();
         } else if (actionString.equalsIgnoreCase(ACTION_NEXT)) {
             transportControls.skipToNext();
         } else if (actionString.equalsIgnoreCase(ACTION_PREVIOUS)) {
             transportControls.skipToPrevious();
         } else if (actionString.equalsIgnoreCase(ACTION_STOP)) {
+            intent = new Intent(PAUSE_PLAYING);
             transportControls.stop();
         }
+        sendBroadcast(intent);
     }
-    public class MediaButtonIntentReceiver extends BroadcastReceiver {
 
-        public MediaButtonIntentReceiver() {
-            super();
-        }
-
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            Log.v(TAG, " imri onReceive");
-            String intentAction = intent.getAction();
-            if (!Intent.ACTION_MEDIA_BUTTON.equals(intentAction)) {
-                return;
-            }
-            KeyEvent event = (KeyEvent)intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
-            if (event == null) {
-                return;
-            }
-            int action = event.getAction();
-            if (action == KeyEvent.ACTION_DOWN) {
-                Log.v(TAG, " imri receive");
-                // do something
-            }
-            abortBroadcast();
-        }
-    }
     private final String CHANNEL_ID = "personal_notification";
 
     private void createNotificationChannel() {
@@ -855,15 +721,18 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
             int importance = NotificationManager.IMPORTANCE_DEFAULT;
             NotificationChannel channel = new NotificationChannel(CHANNEL_ID, name, importance);
             channel.setDescription(description);
-            // Register the channel with the system; you can't change the importance
-            // or other notification behaviors after this
-            NotificationManager notificationManager = getSystemService(NotificationManager.class);
+            channel.setShowBadge(false);
             channel.setDescription("no sound");
             channel.setSound(null,null);
             channel.enableLights(false);
             channel.setLightColor(Color.BLUE);
             channel.enableVibration(false);
-            notificationManager.createNotificationChannel(channel);
+            // Register the channel with the system; you can't change the importance
+            // or other notification behaviors after this
+            NotificationManager notificationManager = getSystemService(NotificationManager.class);
+            if (notificationManager != null) {
+                notificationManager.createNotificationChannel(channel);
+            }
         }
     }
     private void buildNotification(int playbackStatus) {
@@ -876,13 +745,21 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
             //create the pause action
             play_pauseAction = playbackAction(1);
         } else if (playbackStatus == PLAYBACK_STATUS_PAUSED) {
-            notificationAction = R.drawable.ic_play;
+            notificationAction = android.R.drawable.ic_media_play;
             //create the play action
             play_pauseAction = playbackAction(0);
         }
         createNotificationChannel();
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID);
-        Bitmap largeIcon = audioList != null && !audioList.isEmpty() ? audioList.get(audioIndex).getClipArt() : null;
+
+        Intent intent = new Intent(this, MainActivity.class);
+        intent.setAction(Intent.ACTION_MAIN);
+        intent.addCategory(Intent.CATEGORY_LAUNCHER);
+
+        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0,
+                intent, 0);
+
+        Bitmap largeIcon = songsManager != null && !songsManager.isEmptyList() ? songsManager.getSong(audioIndex).getClipArt() : null;
                 builder.setShowWhen(false)
                 // Set the Notification style
                 .setStyle(new androidx.media.app.NotificationCompat.MediaStyle()
@@ -902,7 +779,9 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
                 // Add playback actions
                 .addAction(android.R.drawable.ic_media_previous, "previous", playbackAction(3))
                 .addAction(notificationAction, "pause", play_pauseAction)
-                .addAction(android.R.drawable.ic_media_next, "next", playbackAction(2));
+                .addAction(android.R.drawable.ic_media_next, "next", playbackAction(2))
+                // Add open MainActivity intent
+                .setContentIntent(pendingIntent);
         startForeground(NOTIFICATION_ID, builder.build());
     }
 }

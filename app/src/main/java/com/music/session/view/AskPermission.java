@@ -24,27 +24,22 @@ public class AskPermission extends AppCompatActivity {
     String TAG = "AskPermission";
     boolean isFirst = true;
     private static final int READ_STORAGE_PERMISSION_CODE = 101;
-    private static final int WRITE_STORAGE_PERMISSION_CODE = 101;
     private TextView permissionText;
     private Button reRequestPermissionsButton;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        if (getIntent().getBooleanExtra("EXIT", false))
-        {
-            finish();
-        } else {
-            Objects.requireNonNull(getSupportActionBar()).setDisplayShowTitleEnabled(false);
-            getSupportActionBar().hide();
 
-            checkPermissions();
-        }
+        super.onCreate(savedInstanceState);
+        Objects.requireNonNull(getSupportActionBar()).setDisplayShowTitleEnabled(false);
+        getSupportActionBar().hide();
+
+        checkPermissions();
     }
 
     void checkPermissions() {
         checkPermission(
-                Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                Manifest.permission.READ_EXTERNAL_STORAGE,
                 READ_STORAGE_PERMISSION_CODE);
 
     }
@@ -57,10 +52,8 @@ public class AskPermission extends AppCompatActivity {
 
     public void checkPermission(String permission, int requestCode)
     {
-        Log.i(TAG, "Permission requested " + permission);
         if (ContextCompat.checkSelfPermission(AskPermission.this, permission)
                 == PackageManager.PERMISSION_DENIED) {
-
             setContentView(R.layout.loading_first_screen);
             permissionText = findViewById(R.id.permission_text);
             reRequestPermissionsButton = findViewById(R.id.re_request_permissions);
@@ -75,7 +68,6 @@ public class AskPermission extends AppCompatActivity {
         }
     }
 
-    //@Override
     public void onRequestPermissionsResult(int requestCode,
                                            @NonNull String[] permissions,
                                            @NonNull int[] grantResults)
@@ -83,7 +75,7 @@ public class AskPermission extends AppCompatActivity {
         super.onRequestPermissionsResult(requestCode,
                 permissions,
                 grantResults);
-        if (requestCode == WRITE_STORAGE_PERMISSION_CODE) {
+        if (requestCode == READ_STORAGE_PERMISSION_CODE) {
             if (grantResults.length > 0
                     && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 permissionText.setVisibility(View.INVISIBLE);
@@ -92,7 +84,7 @@ public class AskPermission extends AppCompatActivity {
             }
             else {
                 Toast.makeText(AskPermission.this,
-                        "Write Storage Permission Denied",
+                        "Read Storage Permission Denied",
                         Toast.LENGTH_SHORT)
                         .show();
                 permissionText.setText(R.string.no_permission_text);
@@ -105,11 +97,13 @@ public class AskPermission extends AppCompatActivity {
                 });
 
             }
+        } else {
+            Log.i(TAG, "onRequestPermissionsResult: requestCode" + requestCode);
         }
     }
 
     @Override
     public void onBackPressed() {
-        super.onBackPressed();
+        moveTaskToBack(true);
     }
 }
