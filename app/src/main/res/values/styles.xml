@@ -9,18 +9,20 @@
         <item name="android:windowBackground">@null</item>
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
         <item name="android:statusBarColor">@android:color/black</item>
+        <item name="android:itemBackground">@drawable/button_menu</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="android:colorControlActivated">@color/white</item>
+        <item name="android:colorControlHighlight">@color/white</item>
+        <item name="android:colorControlNormal">@color/white</item>
     </style>
     <style name="coolButton" >
         <item name="android:textColor">@color/black</item>
-        <item name="android:background">@color/purple</item>
         <item name="android:strokeColor">@color/black</item>
         <item name="android:strokeWidth">3.0</item>
         <item name="android:textSize">18sp</item>
 
     </style>
-    <style name="AppTheme.CenterAnimation">
-        <item name="android:windowBackground">@mipmap/ic_simplay_op</item>
-    </style>
+
     <style name="autoscroll">
         <item name="android:singleLine">true</item>
         <item name="android:ellipsize">marquee</item>
@@ -28,5 +30,14 @@
         <item name="android:focusable">true</item>
         <item name="android:focusableInTouchMode">true</item>
         <item name="android:scrollHorizontally">true</item>
+    </style>
+
+    <style name="AppSearchView" parent="Widget.AppCompat.SearchView" >
+        <!-- Query Text Color -->
+        <item name="android:textColorPrimary">@color/white</item>
+        <!-- Hint Color -->
+        <item name="android:textColorHint">@color/white</item>
+        <!-- Icon Color -->
+        <item name="android:tint">@color/white</item>
     </style>
 </resources>

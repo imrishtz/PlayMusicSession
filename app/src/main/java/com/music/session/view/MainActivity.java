@@ -2,7 +2,8 @@
 
 package com.music.session.view;
 
-import android.app.ProgressDialog;
+import android.annotation.SuppressLint;
+import android.app.SearchManager;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -15,29 +16,42 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
+import android.text.InputFilter;
+import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ImageView;
-import android.widget.PopupMenu;
+import android.widget.ListView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SearchView;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 
+import com.music.session.Constants;
 import com.music.session.R;
 import com.music.session.model.Audio;
 import com.music.session.model.MediaPlayerService;
+import com.music.session.model.SongsListArtists;
 import com.music.session.model.SongsListManager;
+import com.music.session.model.SongsListSongs;
 import com.music.session.model.StorageUtil;
 
-import java.util.Objects;
+import java.util.ArrayList;
+import java.util.List;
 
-public class MainActivity extends AppCompatActivity implements PopupMenu.OnMenuItemClickListener {
+public class MainActivity extends AppCompatActivity {
     public static final String NO_AUDIO = "com.music.session.view.NO_AUDIO";
     public static final String SHOW_MAIN = "com.music.session.view.SHOW_MAIN";
     Context mContext;
@@ -51,59 +65,99 @@ public class MainActivity extends AppCompatActivity implements PopupMenu.OnMenuI
     private boolean isThreadRunning = false;
     private Handler mainHandler = new Handler();
 
-    Button playPauseButton, skipNextButton, restartOrLastButton, menu;
+    Button playPauseButton, skipNextButton, restartOrLastButton, menu, shuffle;
     SeekBar seekBar;
     TextView totalTime;
     TextView songName;
     TextView artistAlbumName;
+    TextView loading;
     ImageView currClipArt;
     AllSongs AllSongsFragment;
     Artists ArtistFragment;
     String TAG = "MainActivity";
     private int duration;
     private int seekTo = -1;
-
+    List<String> myList;
     Button allSongsFragmentButton, artistsFragmentButton;
     FragmentManager fragmentManager;
     FragmentTransaction fragmentTransaction;
     Fragment artistsFragment;
     Fragment allSongsFragment;
-
+    private boolean isSongs = true;
+    ArrayAdapter<String> arrayAdapter;
+    ListView listView;
+    ActionBar actionBar;
     TextView seekBarHint;
     private final int TIME_TO_GO_LAST_SONG = 3000;
     private boolean isShuffle = false;
-    private ProgressDialog dialog;
     private static boolean isFirstTime = true;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        actionBar = getSupportActionBar();
+        if (actionBar != null) {
+            actionBar.setBackgroundDrawable(getDrawable(R.color.black));
+        }
+        DisplayMetrics displayMetrics = new DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
+        int screenWidth = displayMetrics.widthPixels;
+        Log.i(TAG, "onCreate: screenWidth imri = " + screenWidth);
+        Constants.setScreenWidth(screenWidth);
         IntentFilter intentFilter = new IntentFilter(MainActivity.SHOW_MAIN);
         intentFilter.addAction(NO_AUDIO);
         registerReceiver(broadcastReceiver, intentFilter);
         StorageUtil.initStorage(getApplicationContext());
-        songsManager = SongsListManager.getManager(this);
-        Log.v(TAG, "onCreate imri firstTime" + isFirstTime);
+        songsManager = SongsListManager.getManager(getApplicationContext());
         mContext = this;
         intentFilter.addAction(MediaPlayerService.START_PLAYING);
         intentFilter.addAction(MediaPlayerService.PAUSE_PLAYING);
-        AllSongsFragment = new AllSongs(this);
-        ArtistFragment = new Artists(this);
-        Objects.requireNonNull(getSupportActionBar()).setDisplayShowTitleEnabled(false);
-        getSupportActionBar().hide();
+        AllSongsFragment = new AllSongs();
+        ArtistFragment = new Artists();
         fragmentManager = getSupportFragmentManager();
         fragmentTransaction = fragmentManager.beginTransaction();
         allSongsFragment = AllSongsFragment;
 
         setContentView(R.layout.activity_main);
+        loading = findViewById(R.id.loading);
+        listView = findViewById(R.id.search_results_list);
+
         seekBar = findViewById(R.id.seekbar);
         songName = findViewById(R.id.song_name_music_player);
         songName.setText(R.string.welcome);
         artistAlbumName = findViewById(R.id.artist_and_album_music_player);
         artistAlbumName.setText(R.string.select_song);
+        if (screenWidth < 550) {
+            songName.setTextSize(16);
+            ViewGroup.LayoutParams paramSong = songName.getLayoutParams();
+            paramSong.width = 240;
+            songName.setLayoutParams(paramSong);
+            ViewGroup.LayoutParams paramArtist = artistAlbumName.getLayoutParams();
+            paramArtist.width = 240;
+            artistAlbumName.setTextSize(13);
+            artistAlbumName.setLayoutParams(paramArtist);
+            ViewGroup.LayoutParams paramSeekBar = seekBar.getLayoutParams();
+            paramSeekBar.width = 280;
+            seekBar.setLayoutParams(paramSeekBar);
+        } else if (screenWidth > 1800) {
+            InputFilter[] fArray = new InputFilter[1];
+            fArray[0] = new InputFilter.LengthFilter(100);
+            songName.setFilters(fArray);
+            artistAlbumName.setFilters(fArray);
+            ViewGroup.LayoutParams paramSong = songName.getLayoutParams();
+            paramSong.width = 1600;
+            songName.setLayoutParams(paramSong);
+            ViewGroup.LayoutParams paramArtist = artistAlbumName.getLayoutParams();
+            paramArtist.width = 1600;
+            artistAlbumName.setLayoutParams(paramArtist);
+            ViewGroup.LayoutParams paramSeekBar = seekBar.getLayoutParams();
+            paramSeekBar.width = 1200;
+            seekBar.setLayoutParams(paramSeekBar);
+        }
         totalTime = findViewById(R.id.total_time);
         seekBarHint = findViewById(R.id.curr_time);
         currClipArt = findViewById(R.id.curr_clipart);
-
+        shuffle = findViewById(R.id.shuffle);
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onStartTrackingTouch(SeekBar seekBar) {
@@ -129,13 +183,7 @@ public class MainActivity extends AppCompatActivity implements PopupMenu.OnMenuI
                 }
             }
         });
-        menu = findViewById(R.id.menu_button);
-        menu.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                showMenu(view);
-            }
-        });
+
         playPauseButton = findViewById(R.id.play_pause);
         playPauseButton.setBackgroundResource(R.drawable.ic_play);
         playPauseButton.setOnClickListener(new View.OnClickListener() {
@@ -180,11 +228,24 @@ public class MainActivity extends AppCompatActivity implements PopupMenu.OnMenuI
                 }
             }
         });
+        shuffle.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (isShuffle) {
+                    shuffle.setBackground(getDrawable(R.drawable.ic_shuffle));
+                    MediaPlayerService.shuffleOff();
+                    isShuffle = false;
+                } else {
+                    shuffle.setBackground(getDrawable(R.drawable.ic_no_shuffle));
+                    MediaPlayerService.shuffleOn();
+                    isShuffle = true;
+                }
+            }
+        });
         if (isFirstTime) {
-            dialog = new ProgressDialog(MainActivity.this);
-            dialog.setMessage("Loading your media");
-            dialog.show();
-            mainHandler.postDelayed(timer, 5000);
+            loading.setVisibility(View.VISIBLE);
+            mainHandler.postDelayed(timer, 10000);
+            makeSearchResults();
         } else {
             mainHandler.post(loadFragmentAgain);
         }
@@ -197,7 +258,7 @@ public class MainActivity extends AppCompatActivity implements PopupMenu.OnMenuI
             if (action != null) {
                 if (isFirstTime) {
                     if (action.equals(SHOW_MAIN)) {
-                        dialog.dismiss();
+                        loading.setVisibility(View.INVISIBLE);
                         mainHandler.post(loadFragmentAgain);
                         isFirstTime = false;
                         mainHandler.removeCallbacks(timer);
@@ -274,7 +335,6 @@ public class MainActivity extends AppCompatActivity implements PopupMenu.OnMenuI
         Audio temp = null;
         @Override
         public void run() {
-            Log.i(TAG, "run: imri");
             if (serviceBound) {
                 /*try {*/
                 if (player != null && player.isPlaying()) {
@@ -293,7 +353,7 @@ public class MainActivity extends AppCompatActivity implements PopupMenu.OnMenuI
                         } else {
                             currClipArt.setImageDrawable(getDrawable(R.mipmap.ic_simplay_op));
                         }
-                        duration = Integer.valueOf(currentPlaying.getDuration());
+                        duration = player.getDuration();
                         seekBar.setMax(duration);
                         String time = getTime(duration);
                         totalTime.setText(time);
@@ -321,15 +381,21 @@ public class MainActivity extends AppCompatActivity implements PopupMenu.OnMenuI
         public void run() {
             artistAlbumName.setText(getString(R.string.no_audio));
             playPauseButton.setOnClickListener(null);
-            artistsFragmentButton.setOnClickListener(null);
-            allSongsFragmentButton.setOnClickListener(null);
+            if (artistsFragmentButton != null) {
+                artistsFragmentButton.setOnClickListener(null);
+            }
+            if (allSongsFragmentButton != null) {
+                allSongsFragmentButton.setOnClickListener(null);
+            }
             skipNextButton.setOnClickListener(null);
             restartOrLastButton.setOnClickListener(null);
-            menu.setOnClickListener(null);
+            if (menu != null) {
+                menu.setOnClickListener(null);
+            }
             seekBar.setOnSeekBarChangeListener(null);
             TextView tv = findViewById(R.id.no_songs_text);
             tv.setVisibility(View.VISIBLE);
-            dialog.dismiss();
+            loading.setVisibility(View.INVISIBLE);
         }
     };
     Runnable loadFragmentAgain = new Runnable() {
@@ -347,6 +413,7 @@ public class MainActivity extends AppCompatActivity implements PopupMenu.OnMenuI
                                 .commit();
                         allSongsFragmentButton.setBackground(getDrawable(R.drawable.button_menu_pressed));
                         artistsFragmentButton.setBackground(getDrawable(R.drawable.button_menu));
+                        isSongs = true;
                     }
                 });
                 artistsFragment = ArtistFragment;
@@ -359,6 +426,7 @@ public class MainActivity extends AppCompatActivity implements PopupMenu.OnMenuI
                                 .commit();
                         artistsFragmentButton.setBackground(getDrawable(R.drawable.button_menu_pressed));
                         allSongsFragmentButton.setBackground(getDrawable(R.drawable.button_menu));
+                        isSongs = false;
 
                     }
                 });
@@ -399,40 +467,133 @@ public class MainActivity extends AppCompatActivity implements PopupMenu.OnMenuI
     }
 
     @Override
+    public boolean onSearchRequested() {
+        Log.d(TAG, "onSearchRequested: " + "IMRI");
+        startSearch(null, false, null, false);
+        return true;
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
         setVolumeControlStream(AudioManager.STREAM_MUSIC);
     }
 
-    public void showMenu(View v) {
-        PopupMenu popup = new PopupMenu(MainActivity.this, v);
-        popup.setOnMenuItemClickListener(MainActivity.this);
-        popup.inflate(R.menu.main_menu);
-        popup.show();
-        MenuItem item = popup.getMenu().findItem(R.id.shuffle);
-        if (item != null) {
-            item.setChecked(isShuffle);
-        }
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        Log.i(TAG, "onOptionsItemSelected: imri");
+        return super.onOptionsItemSelected(item);
     }
 
+
     @Override
-    public boolean onMenuItemClick(MenuItem item) {
-        int itemId = item.getItemId();
-        if (itemId == R.id.shuffle) {
-            if (isShuffle) {
-                MediaPlayerService.shuffleOff();
-                isShuffle = false;
-            } else {
-                MediaPlayerService.shuffleOn();
-                isShuffle = true;
+    public boolean onMenuOpened(int featureId, Menu menu) {
+        Log.i(TAG, "onMenuOpened: imri");
+        return super.onMenuOpened(featureId, menu);
+    }
+    private Menu mMenu;
+    @Override
+    public boolean onCreateOptionsMenu(final Menu menu) {
+        getMenuInflater().inflate(R.menu.main_menu, menu);
+        mMenu = menu;
+        // Associate searchable configuration with the SearchView
+        SearchManager searchManager =
+                (SearchManager) getSystemService(Context.SEARCH_SERVICE);
+        SearchView searchView =
+                (SearchView) menu.findItem(R.id.search).getActionView();
+        searchView.setMaxWidth(Integer.MAX_VALUE);
+        searchView.setOnCloseListener(new SearchView.OnCloseListener() {
+            @Override
+            public boolean onClose() {
+                listView.setVisibility(View.GONE);
+                actionBar.setTitle(getString(R.string.app_name));
+
+                return false;
             }
-            item.setChecked(isShuffle);
-        }
+        });
+        searchView.setOnSearchClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                actionBar.setTitle("");
+            }
+        });
+        searchView.setSearchableInfo(
+                searchManager.getSearchableInfo(getComponentName()));
+        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+            @Override
+            public boolean onQueryTextSubmit(String query) {
+                listView.setVisibility(View.GONE);
+                return false;
+            }
+            @Override
+            public boolean onQueryTextChange(String newText) {
+                if (newText.isEmpty()) {
+                    listView.setVisibility(View.GONE);
+                } else {
+                    listView.setVisibility(View.VISIBLE);
+                }
+                arrayAdapter.getFilter().filter(newText);
+
+                return true;
+            }
+        });
         return true;
     }
 
     @Override
     public void onBackPressed() {
         moveTaskToBack(true);
+    }
+    private void makeSearchResults() {
+        final ArrayList<Audio> songsList = songsManager.getSongs();
+
+        myList = new ArrayList<>();
+        for (Audio audio : songsList) {
+            myList.add(audio.getTitle() + " - " + audio.getArtist());
+        }
+
+        arrayAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, myList);
+
+        listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @SuppressLint("RestrictedApi")
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                String titleAndArtist = listView.getItemAtPosition(position).toString();
+                int index = 0;
+                for (Audio aud : songsList) {
+                    if (titleAndArtist.contains(aud.getArtist()) && titleAndArtist.contains(aud.getTitle())) {
+                        break;
+                    }
+                    ++index;
+                }
+                int indexToPlay;
+                if (isSongs) {
+                    if (songsManager.getListType() != SongsListManager.SONGS) {
+                        songsManager.setListType(SongsListManager.SONGS);
+                    }
+                    indexToPlay = SongsListSongs.getTitleIndex(index);
+                } else {
+                    if (songsManager.getListType() != SongsListManager.ARTISTS) {
+                        songsManager.setListType(SongsListManager.ARTISTS);
+                    }
+                    indexToPlay = SongsListArtists.getTitleIndex(index);
+                }
+                Log.i(TAG, "onItemClick: mMenu" + mMenu);
+                if (mMenu != null) {
+                    SearchView searchView =
+                            (SearchView) mMenu.findItem(R.id.search).getActionView();
+                    searchView.setIconified(true);
+                    if (!searchView.isIconified()) {
+                        searchView.setIconified(true);
+                    } else {
+                        onBackPressed();
+                    }
+                }
+                listView.setVisibility(View.GONE);
+                playAudio(indexToPlay);
+            }
+
+        });
+        listView.setAdapter(arrayAdapter);
     }
 }

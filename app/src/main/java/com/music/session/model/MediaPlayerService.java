@@ -315,6 +315,10 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
                 audioManager.abandonAudioFocus(this);
     }
 
+    public int getDuration() {
+        return mediaPlayer.getDuration();
+    }
+
     public class LocalBinder extends Binder {
         public MediaPlayerService getService() {
             return MediaPlayerService.this;
@@ -655,7 +659,6 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
     }
 
     private PendingIntent playbackAction(int actionNumber) {
-        Log.i(TAG, "playbackAction: imri actionNumber" + actionNumber);
         Intent playbackAction = new Intent(this, MediaPlayerService.class);
         switch (actionNumber) {
             case 0:
@@ -683,14 +686,12 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
     private BroadcastReceiver handleActions = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            Log.i(TAG, "buildNotification: imri onReceivehandleIncomingActions");
             handleIncomingActions(intent);
         }
     };
 
     private void handleIncomingActions(Intent playbackAction) {
         if (playbackAction == null || playbackAction.getAction() == null) return;
-        Log.i(TAG, "handleIncomingActions: imri playbackAction" + playbackAction);
         String actionString = playbackAction.getAction();
 
         Intent intent = new Intent(START_PLAYING);
@@ -736,7 +737,6 @@ public class MediaPlayerService extends MediaBrowserServiceCompat implements Med
         }
     }
     private void buildNotification(int playbackStatus) {
-        Log.i(TAG, "buildNotification: imri playbackStatus" + playbackStatus);
         int notificationAction = android.R.drawable.ic_media_pause;//needs to be initialized
         PendingIntent play_pauseAction = null;
 

@@ -2,6 +2,9 @@ package com.music.session.view;
 
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.text.InputFilter;
+import android.text.TextUtils;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -11,6 +14,7 @@ import android.widget.TextView;
 
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.music.session.Constants;
 import com.music.session.R;
 import com.music.session.model.Audio;
 import com.music.session.model.SongsListSongs;
@@ -24,6 +28,10 @@ public class SongsAdapter extends RecyclerView.Adapter<SongsAdapter.MyViewHolder
     private final static String TAG = "SongsAdapter";
     private SongsListSongs mSongsListInstance;
 
+    public Audio getAudio(int position) {
+        return mSongsListInstance.getSong(position);
+    }
+
     static class MyViewHolder extends RecyclerView.ViewHolder {
         // each data item is just a string in this case
         private View ViewRec;
@@ -35,6 +43,41 @@ public class SongsAdapter extends RecyclerView.Adapter<SongsAdapter.MyViewHolder
             ViewRec = v;
             textView2 = v.findViewById(R.id.text1);
             textView3 = v.findViewById(R.id.text2);
+            Log.i(TAG, "MyViewHolder: imri screen=" + Constants.screenWidth);
+            if (Constants.screenWidth < 600) {
+                InputFilter[] fArray = new InputFilter[1];
+                fArray[0] = new InputFilter.LengthFilter(45);
+                textView2.setFilters(fArray);
+                textView3.setFilters(fArray);
+                ViewGroup.LayoutParams paramSong = textView2.getLayoutParams();
+                paramSong.width = 360;
+                textView2.setLayoutParams(paramSong);
+                ViewGroup.LayoutParams paramArtist = textView3.getLayoutParams();
+                paramArtist.width = 360;
+                textView3.setLayoutParams(paramArtist);
+                textView2.setTextSize(14);
+                textView3.setTextSize(12);
+            } else if (Constants.screenWidth < 700) {
+                textView2.setTextSize(16);
+                textView3.setTextSize(14);
+
+            } else if (Constants.screenWidth > 1800) {
+                InputFilter[] fArray = new InputFilter[1];
+                fArray[0] = new InputFilter.LengthFilter(80);
+                textView2.setFilters(fArray);
+                textView2.setEllipsize(TextUtils.TruncateAt.END);
+                ViewGroup.LayoutParams paramSong = textView2.getLayoutParams();
+                paramSong.width = 1600;
+                textView2.setLayoutParams(paramSong);
+                textView2.setTextSize(21);
+                textView3.setTextSize(19);
+            } else if (Constants.screenWidth > 1200) {
+                ViewGroup.LayoutParams paramSong = textView2.getLayoutParams();
+                paramSong.width = 1100;
+                textView2.setLayoutParams(paramSong);
+                textView2.setTextSize(20);
+                textView3.setTextSize(17);
+            }
             image_clipart = v.findViewById(R.id.image_clipart);
         }
     }
@@ -84,5 +127,4 @@ public class SongsAdapter extends RecyclerView.Adapter<SongsAdapter.MyViewHolder
     public int getItemCount() {
         return mSongsListInstance.getSize();
     }
-
 }

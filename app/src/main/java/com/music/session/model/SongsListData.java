@@ -19,10 +19,8 @@ import java.io.InputStream;
 import java.util.ArrayList;
 
 class SongsListData {
-    private static final String TAG = "SongsListData";
     private static SongsListData data;
     private static ArrayList<Audio> mSongsList = new ArrayList<>();
-    private static Context mContext;
     static SongsListData getSongsListData(Context context) {
         if (data == null) {
             data = new SongsListData(context);
@@ -30,30 +28,35 @@ class SongsListData {
         return data;
     }
 
-    private SongsListData(Context context) {
+    static ArrayList<Audio> getRawSongs() {
+        return mSongsList;
+    }
+    private SongsListData(final Context context) {
         getAllAudioFromDevice(context);
-        mContext = context;
         final ContentResolver contentResolver = context.getContentResolver();
         AsyncTask.execute(new Runnable() {
             @Override
             public void run() {
-                Log.i(TAG, "start run: imri");
-                new getImagesAsyncTask(contentResolver).execute();
+                new getImagesAsyncTask(contentResolver).execute(context);
             }
         });
     }
 
     private void getAllAudioFromDevice(final Context context) {
+        Log.i("imri", "getAllAudioFromDevice: imri" );
         String selectionMusic = MediaStore.Audio.Media.IS_MUSIC + "!= ? AND ";
         String selectionMp3 = MediaStore.Files.FileColumns.MIME_TYPE + "= ? ";
         String ext = MimeTypeMap.getSingleton().getMimeTypeFromExtension("mp3");
         String[] selExtARGS = new String[]{" 0", ext};
         Uri uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
+
         Cursor cursor = context.getContentResolver().query(uri, null, selectionMusic + selectionMp3, selExtARGS, null);
         if (cursor != null && cursor.getCount() > 0) {
+            Log.i("imri", "cursor != null: imri" );
             final ArrayList<Audio> tempAudioList = new ArrayList<>();
             cursor.moveToFirst();
             while (cursor.moveToNext()) {
+                Log.i("imri", "cursor moveToNext: imri" );
                 int idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID);
                 long id = cursor.getLong(idColumn);
                 String title = cursor.getString(cursor.getColumnIndex(MediaStore.Audio.Media.TITLE));
@@ -64,12 +67,11 @@ class SongsListData {
                     artist = "Unknown";
                 }
                 String name = cursor.getString(cursor.getColumnIndex(MediaStore.Audio.Media.DISPLAY_NAME));
-                String duration = cursor.getString(cursor.getColumnIndex(MediaStore.Audio.Media.DURATION));
 
                 Uri contentUri = ContentUris.withAppendedId(
                         MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id);
                 context.grantUriPermission(context.getPackageName(), contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                tempAudioList.add(new Audio(contentUri.toString(), title, album, albumId, artist, name, duration));
+                tempAudioList.add(new Audio(contentUri.toString(), title, album, albumId, artist, name));
             }
             cursor.close();
             mSongsList = tempAudioList;
@@ -99,7 +101,7 @@ class SongsListData {
                     InputStream in = null;
                     try {
                         in = mContentResolver.openInputStream(uri);
-                    } catch (Exception e) {}
+                    } catch (Exception e) { e.printStackTrace();}
                     bitmap = BitmapFactory.decodeStream(in);
                 }
                 if (bitmap != null) {
@@ -107,22 +109,20 @@ class SongsListData {
                 }
             }
 
-            finished();
+            finished((Context)params[0]);
             return null;
         }
 
     }
 
-    private static void finished() {
+    private static void finished(Context context) {
         Intent intent;
         if (!mSongsList.isEmpty()) {
             intent = new Intent(MainActivity.SHOW_MAIN);
         } else {
             intent = new Intent(MainActivity.NO_AUDIO);
         }
-        mContext.sendBroadcast(intent);
-        mContext = null;
-        Log.i(TAG, "finished: imri");
+        context.sendBroadcast(intent);
     }
     int getSize(){ return mSongsList.size();}
     boolean isEmpty() {return mSongsList.isEmpty();}

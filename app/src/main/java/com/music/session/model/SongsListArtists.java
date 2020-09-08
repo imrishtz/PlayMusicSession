@@ -9,10 +9,14 @@ import java.util.Comparator;
 public class SongsListArtists extends AbstractSongsList {
 
     private static int[] ArtistIndexToReal;
+    private static int[] RealIndexToArtist;
+
     public SongsListArtists(Context context) {
         super(context);
         ArrayList<Audio> songsList = getAllSongs();
         ArtistIndexToReal = new int[songsList.size()];
+        RealIndexToArtist = new int[songsList.size()];
+
         ArrayList<Audio> sortedList = new ArrayList<>(songsList);
         Collections.sort(sortedList, new Comparator<Audio>() {
             @Override
@@ -32,8 +36,13 @@ public class SongsListArtists extends AbstractSongsList {
         });
         for (int i = 0; i < songsList.size(); ++i) {
             ArtistIndexToReal[i] =  sortedList.get(i).index;
+            RealIndexToArtist[sortedList.get(i).index] = i;
         }
 
+    }
+
+    public static int getTitleIndex(int index) {
+        return RealIndexToArtist[index];
     }
 
     @Override

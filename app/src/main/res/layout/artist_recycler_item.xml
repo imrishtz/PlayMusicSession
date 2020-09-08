@@ -9,11 +9,11 @@
         android:layout_height="50dp"
         android:text="@string/artists"
         android:gravity="center_vertical"
-        android:textSize="30dp"
+        android:textSize="30sp"
         android:paddingTop="10dp"
         android:paddingStart="18dp"
         android:textColor="@color/white"
-        android:background="@color/black"></TextView>
+        android:background="@color/black"/>
 
 
 </LinearLayout>

@@ -21,12 +21,11 @@ public class Audio implements Serializable {
     private String album;
     private String albumId;
     private String artist;
-    private String duration;
     private byte[] arr;
     private Bitmap mClipArt = null;
 
-    public Audio(String uri, String title, String album, String albumId, String artist, String name,
-                 String duration) {
+    public Audio(String uri, String title, String album, String albumId, String artist,
+                 String name) {
         index = uniqueIdCounter++;
         this.uri = uri;
         this.title = title;
@@ -34,14 +33,10 @@ public class Audio implements Serializable {
         this.albumId = albumId;
         this.artist = artist;
         this.name = name;
-        this.duration = duration;
     }
 
     public String getUri() {
         return uri;
-    }
-    public String getDuration() {
-        return duration;
     }
     public String getTitle() {
         return title;

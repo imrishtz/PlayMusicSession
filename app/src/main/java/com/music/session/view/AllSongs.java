@@ -21,22 +21,21 @@ public class AllSongs extends Fragment {
 
     private SongsAdapter mSongsAdapter;
 
-    AllSongs(Context context) {
-        mSongsAdapter = new SongsAdapter(context);
-    }
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
 // Inflate the layout for this fragment
-        final Context context = getContext();
+        final Context context = getActivity();
+        mSongsAdapter = new SongsAdapter(context);
         View view = inflater.inflate(R.layout.all_songs, container, false);
         RecyclerView recyclerView = view.findViewById(R.id.my_recycler_view);
         recyclerView.setHasFixedSize(true);
         RecyclerView.LayoutManager layoutManager = new LinearLayoutManager(context);
         DividerItemDecoration horizontalDecoration = new DividerItemDecoration(recyclerView.getContext(),
-                DividerItemDecoration.VERTICAL);
+        DividerItemDecoration.VERTICAL);
         Drawable horizontalDivider = ContextCompat.getDrawable(context, R.drawable.horizontal_divider);
         horizontalDecoration.setDrawable(horizontalDivider);
+
         recyclerView.addItemDecoration(horizontalDecoration);
         recyclerView.setLayoutManager(layoutManager);
         recyclerView.setItemViewCacheSize(20);
@@ -53,10 +52,16 @@ public class AllSongs extends Fragment {
             }
 
             @Override
-            public void onLongClick(View view, int position) {}
+            public void onLongClick(View view, int position) {
+                SongInfoBox songInfoBox = new SongInfoBox(context);
+                songInfoBox.show(mSongsAdapter.getAudio(position), view.getY());
+
+            }
         }));
         return view;
     }
+
+
     class RecyclerTouchListener implements RecyclerView.OnItemTouchListener{
         private ClickListener clicklistener;
         private GestureDetector gestureDetector;

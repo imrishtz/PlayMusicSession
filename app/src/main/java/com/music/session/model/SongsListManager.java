@@ -1,12 +1,13 @@
 package com.music.session.model;
 
 import android.content.Context;
+import java.util.ArrayList;
 
 public class SongsListManager {
+    private static final String TAG = "SongsListManager";
     private static int numTypes = 0;
     public static final int SONGS = numTypes++;
     public static final int ARTISTS = numTypes++;
-
     private static SongsListManager manager;
     private StorageUtil storage = StorageUtil.getInstance();
     private AbstractSongsList[] listTypes = new AbstractSongsList[numTypes];
@@ -32,11 +33,10 @@ public class SongsListManager {
     public void setListType(int type) {
         listType = type;
     }
-
-    Audio getSong(int index) {
+    public int getListType() { return listType; }
+    public Audio getSong(int index) {
         return listTypes[listType].getSong(index);
     }
-
     public void storeIndex(int index) {
         storage.storeAudioIndex(index);
     }
@@ -50,4 +50,8 @@ public class SongsListManager {
     int getSize() {
         return listTypes[0].getSize();
     }
+    public ArrayList<Audio> getSongs() {
+        return SongsListSongs.getRawSongs();
+    }
+
 }

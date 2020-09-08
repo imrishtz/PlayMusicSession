@@ -19,4 +19,7 @@ public abstract class AbstractSongsList {
     public int getSize() {return  data.getSize();}
     boolean isEmpty() {return  data.isEmpty();}
 
+    public static ArrayList<Audio> getRawSongs() {
+        return SongsListData.getRawSongs();
+    }
 }

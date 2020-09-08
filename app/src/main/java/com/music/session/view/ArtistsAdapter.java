@@ -2,6 +2,8 @@ package com.music.session.view;
 
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.text.InputFilter;
+import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -10,6 +12,7 @@ import android.widget.TextView;
 
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.music.session.Constants;
 import com.music.session.R;
 import com.music.session.model.Audio;
 import com.music.session.model.SongsListArtists;
@@ -17,7 +20,6 @@ import com.music.session.model.SongsListArtists;
 import java.util.ArrayList;
 
 public class ArtistsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> implements HeaderItemDecoration.StickyHeaderInterface {
-    private final Context mContext;
     private ArrayList<Object> showList;
     private static final int SONG_HOLDER_TYPE = 396;
     private static final int ARTIST_HOLDER_TYPE = 397;
@@ -25,8 +27,7 @@ public class ArtistsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     private SongsListArtists mArtistsListInstance;
 
     ArtistsAdapter(Context context) {
-        mContext = context;
-        mArtistsListInstance = new SongsListArtists(mContext);
+        mArtistsListInstance = new SongsListArtists(context);
         fillArtistList();
     }
     @Override
@@ -51,7 +52,15 @@ public class ArtistsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     public void bindHeaderData(View header, int headerPosition) {
         String child = (String)showList.get(headerPosition);
         TextView tvName = header.findViewById(R.id.artist_header);
+        setSizeByScreenWidth(tvName);
         tvName.setText(child);
+    }
+    private static void setSizeByScreenWidth(TextView tv) {
+        if (Constants.screenWidth < 600) {
+            tv.setTextSize(22);
+        } else if (Constants.screenWidth < 800) {
+            tv.setTextSize(25);
+        }
     }
 
     @Override
@@ -69,6 +78,43 @@ public class ArtistsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             super(v);
             textView2 = v.findViewById(R.id.text1);
             textView3 = v.findViewById(R.id.text2);
+            if (Constants.screenWidth < 600) {
+                InputFilter[] fArray = new InputFilter[1];
+                fArray[0] = new InputFilter.LengthFilter(45);
+                textView2.setFilters(fArray);
+                textView3.setFilters(fArray);
+                ViewGroup.LayoutParams paramSong = textView2.getLayoutParams();
+                paramSong.width = 360;
+                textView2.setLayoutParams(paramSong);
+                ViewGroup.LayoutParams paramArtist = textView3.getLayoutParams();
+                paramArtist.width = 360;
+                textView3.setLayoutParams(paramArtist);
+                textView2.setTextSize(15);
+                textView3.setTextSize(12);
+            } else if (Constants.screenWidth < 700) {
+                textView2.setTextSize(16);
+                textView3.setTextSize(14);
+            } else if (Constants.screenWidth > 1800) {
+                InputFilter[] fArray = new InputFilter[1];
+                fArray[0] = new InputFilter.LengthFilter(80);
+                textView2.setFilters(fArray);
+                textView2.setEllipsize(TextUtils.TruncateAt.END);
+                textView3.setFilters(fArray);
+                ViewGroup.LayoutParams paramSong = textView2.getLayoutParams();
+                paramSong.width = 1600;
+                textView2.setLayoutParams(paramSong);
+                ViewGroup.LayoutParams paramArtist = textView3.getLayoutParams();
+                paramArtist.width = 1600;
+                textView3.setLayoutParams(paramArtist);
+                textView2.setTextSize(21);
+                textView3.setTextSize(18);
+            } else if (Constants.screenWidth > 1200) {
+                ViewGroup.LayoutParams paramSong = textView2.getLayoutParams();
+                paramSong.width = 1100;
+                textView2.setLayoutParams(paramSong);
+                textView2.setTextSize(20);
+                textView3.setTextSize(17);
+            }
             image_clipart = v.findViewById(R.id.image_clipart);
         }
     }
@@ -78,6 +124,7 @@ public class ArtistsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         private ArtistViewHolder(View v) {
             super((v));
             artistName = v.findViewById(R.id.artist_header);
+            setSizeByScreenWidth(artistName);
             v.setClickable(false);
         }
     }
@@ -135,7 +182,7 @@ public class ArtistsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             if (bitMapClipArt != null) {
                 songViewHolder.image_clipart.setImageBitmap(bitMapClipArt);
             } else {
-                songViewHolder.image_clipart.setImageDrawable(mContext.getDrawable(R.drawable.ic_no_art));
+                songViewHolder.image_clipart.setImageDrawable(songViewHolder.image_clipart.getContext().getDrawable(R.drawable.ic_no_art));
             }
         } else if (holder.getItemViewType() == ARTIST_HOLDER_TYPE) {
             ArtistViewHolder artistViewHolder = (ArtistViewHolder) holder;

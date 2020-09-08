@@ -21,7 +21,6 @@ public class HeaderItemDecoration extends RecyclerView.ItemDecoration {
         // On Sticky Header Click
         recyclerView.addOnItemTouchListener(new RecyclerView.OnItemTouchListener() {
             public boolean onInterceptTouchEvent(@NonNull RecyclerView recyclerView,@NonNull MotionEvent motionEvent) {
-                // Handle the clicks on the header here ...
                 return motionEvent.getY() <= mStickyHeaderHeight;
             }
 

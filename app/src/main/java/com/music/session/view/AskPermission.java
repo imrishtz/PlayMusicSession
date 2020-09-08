@@ -3,6 +3,7 @@ package com.music.session.view;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -11,6 +12,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -29,11 +31,11 @@ public class AskPermission extends AppCompatActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-
+        ActionBar bar  = getSupportActionBar();
+        if (bar != null) {
+            bar.setBackgroundDrawable(getDrawable(R.color.black));
+        }
         super.onCreate(savedInstanceState);
-        Objects.requireNonNull(getSupportActionBar()).setDisplayShowTitleEnabled(false);
-        getSupportActionBar().hide();
-
         checkPermissions();
     }
 

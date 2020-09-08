@@ -16,14 +16,12 @@ import com.music.session.R;
 
 public class Artists extends Fragment {
     private ArtistsAdapter mArtistsAdapter;
-    Artists(Context context) {
-        mArtistsAdapter = new ArtistsAdapter(context);
-    }
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
-        final Context context = getContext();
+        final Context context = getActivity();
+        mArtistsAdapter = new ArtistsAdapter(context);
         View view = inflater.inflate(R.layout.all_artists, container, false);
         RecyclerView recyclerView =  view.findViewById(R.id.artists_recycler_view);
         recyclerView.setHasFixedSize(true);
